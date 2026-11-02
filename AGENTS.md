@@ -7,6 +7,7 @@
 ## Development and checks
 
 - Tool versions are pinned in `mise.toml` and `mise.lock`. From the root, use `mise run dev:backend` and `mise run dev:frontend` in separate terminals; setup and daemon instructions are in `README.md`.
+- On Windows, fresh terminals and shells do not have `mise` on PATH: prepend `$env:PATH = "$HOME\.local\bin;$env:PATH"` for the current terminal (see `README.md`; `scripts/install-mise.ps1` is the documented installer).
 - `mise run check` is the CI/pre-push check: generation drift, formatting, Go modules, lint, typecheck, build, tests, hooks validation, and commit messages. It checks rather than fixes; `npm run format` modifies files.
 - Focused tasks: `mise run lint`, `mise run typecheck`, `mise run build`, `mise run test`; a focused smoke run is `mise exec -- go test ./tests/smoke -run TestServerStartsAndMatchesContract -count=1`. It starts a real server; browser behavior is checked separately.
 - Keep the single TypeScript 6 compiler: Hey API uses the JavaScript compiler API absent from TypeScript 7. The package overrides patch vulnerable transitive dependencies; review them on upgrades.
@@ -30,4 +31,4 @@ Use the five default triage roles in local issue `Status:` lines. Read `docs/age
 
 ### Domain docs
 
-Single-context: root `GLOSSARY.md` and `docs/adr/`. Read `docs/agents/domain.md` before exploring the codebase or proposing domain changes.
+Read `docs/agents/domain.md` before exploring the codebase or proposing domain changes; it defines the single-context `GLOSSARY.md` / `docs/adr/` convention, and those files are created lazily and may not exist yet.
