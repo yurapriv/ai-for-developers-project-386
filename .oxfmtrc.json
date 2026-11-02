@@ -1,0 +1,13 @@
+{
+  "singleQuote": true,
+  "ignorePatterns": [
+    "frontend/src/api/generated/**",
+    "api/generated/**",
+    ".scratch/**",
+    ".opencode/**",
+    "docs/**",
+    "package-lock.json",
+    ".github/workflows/hexlet-check.yml",
+    ".github/workflows/README.md"
+  ]
+}

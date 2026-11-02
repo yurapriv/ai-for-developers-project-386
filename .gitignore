@@ -1,4 +1,12 @@
 ### Go
+/dist/
+/node_modules/
+/.mise-cache/
+/.generated-check-*/
+hk.local.pkl
+.env.*
+!.env.example
+
 # Binaries for programs and plugins
 *.exe
 *.exe~

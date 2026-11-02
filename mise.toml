@@ -1,0 +1,56 @@
+min_version = "2026.10.25"
+
+[settings]
+experimental = true
+
+[tools]
+go = "1.27.3"
+node = "24.22.2"
+golangci-lint = "2.15.0"
+hk = "2.11.0"
+pitchfork = "2.33.0"
+
+[env]
+GOTOOLCHAIN = "local"
+_.path = ["{{ mise_bin | dirname }}"]
+
+[tasks.setup]
+run = "node scripts/tasks.mjs setup"
+
+[tasks."setup:hooks"]
+run = "node scripts/tasks.mjs setup:hooks"
+env = { SCAFFOLD_MISE_BIN = "{{ mise_bin }}" }
+
+[tasks.generate]
+run = "node scripts/tasks.mjs generate"
+
+[tasks."dev:backend"]
+run = "go run ./cmd/server"
+
+[tasks."dev:frontend"]
+run = "node node_modules/vite/bin/vite.js --config frontend/vite.config.ts"
+
+[tasks.lint]
+run = "node scripts/tasks.mjs lint"
+
+[tasks.typecheck]
+run = "node scripts/tasks.mjs typecheck"
+
+[tasks.build]
+run = "node scripts/tasks.mjs build"
+
+[tasks.test]
+run = "node scripts/tasks.mjs test"
+
+[tasks.check]
+run = "node scripts/tasks.mjs check"
+
+[daemons.backend]
+task = "dev:backend"
+ready_port = 8080
+stop_signal = "SIGINT"
+
+[daemons.frontend]
+task = "dev:frontend"
+ready_port = 5173
+stop_signal = "SIGINT"

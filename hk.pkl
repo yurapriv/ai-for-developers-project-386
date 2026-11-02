@@ -1,0 +1,34 @@
+amends "package://github.com/jdx/hk/releases/download/v2.11.0/hk@2.11.0#/Config.pkl"
+
+hooks {
+  ["pre-commit"] {
+    fix = false
+    stage = false
+    stash = "git"
+    steps {
+      ["staged-checks"] {
+        glob = List("**/*.go", "**/*.ts", "**/*.tsx", "**/*.mjs", "**/*.json", "**/*.css", "**/*.html", "**/*.yaml", "**/*.yml", "**/*.md")
+        exclude = List("**/generated/**", "**/*.gen.go", ".scratch/**", ".github/workflows/hexlet-check.yml", "package-lock.json")
+        check = new Command { argv = List("node", "scripts/tasks.mjs", "hook-files", "{{files}}") }
+      }
+    }
+  }
+  ["commit-msg"] {
+    fix = false
+    stage = false
+    steps {
+      ["conventional-commits"] {
+        check = new Command { argv = List("node", "scripts/tasks.mjs", "commit-msg", "{{commit_msg_file}}") }
+      }
+    }
+  }
+  ["pre-push"] {
+    fix = false
+    stage = false
+    steps {
+      ["check"] {
+        check = new Command { argv = List("mise", "run", "check") }
+      }
+    }
+  }
+}
