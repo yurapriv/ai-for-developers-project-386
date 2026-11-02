@@ -1,7 +1,16 @@
 # Repository guidance
 
-- This is a Hexlet calendar-booking service exercise, currently only a scaffold. There is no application code, selected toolchain, dependency manifest, or local build/test/lint command yet; do not assume a framework or package manager.
-- `README.md` links the expected-behavior demo and course. Its stack, installation, and usage sections are placeholders, not working setup instructions.
+- This Hexlet calendar-booking exercise currently implements a technical scaffold, not booking functionality; see `README.md` for the intended behavior.
+- Go `net/http` starts at `cmd/server/main.go` and implements the generated strict API in `internal/server/`. The React/Vite frontend is in `frontend/`; Vite proxies `/health` to the Go server on port 8080.
+- The API source is `api/main.tsp`. After changing it, run `mise run generate` then `mise run check`. Generated `api/generated/`, `internal/api/`, and `frontend/src/api/generated/` are committed and generator-owned: do not edit them by hand; generation replaces these directories.
+
+## Development and checks
+
+- Tool versions are pinned in `mise.toml` and `mise.lock`. From the root, use `mise run dev:backend` and `mise run dev:frontend` in separate terminals; setup and daemon instructions are in `README.md`.
+- `mise run check` is the CI/pre-push check: generation drift, formatting, Go modules, lint, typecheck, build, tests, hooks validation, and commit messages. It checks rather than fixes; `npm run format` modifies files.
+- Focused tasks: `mise run lint`, `mise run typecheck`, `mise run build`, `mise run test`; a focused smoke run is `mise exec -- go test ./tests/smoke -run TestServerStartsAndMatchesContract -count=1`. It starts a real server; browser behavior is checked separately.
+- Keep the single TypeScript 6 compiler: Hey API uses the JavaScript compiler API absent from TypeScript 7. The package overrides patch vulnerable transitive dependencies; review them on upgrades.
+- Use Conventional Commits; commitlint checks new history and commit-msg after `mise run setup:hooks` explicitly installs local hooks.
 
 ## Hexlet checks
 

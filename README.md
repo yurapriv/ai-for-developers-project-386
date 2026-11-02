@@ -1,6 +1,5 @@
 # Календарь звонков
 
-
 [![hexlet-check](https://github.com/yurapriv/ai-for-developers-project-386/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/yurapriv/ai-for-developers-project-386/actions)
 
 Разработайте совместно с ИИ сервис для бронирования календаря
@@ -42,20 +41,98 @@
 
 ## Стек
 
-- Разное
+- Бекенд: Go, стандартный `net/http`, generated strict server от oapi-codegen.
+- Фронтенд: TypeScript, React, Vite; пока только технический экран состояния.
+- API: `api/main.tsp` → `api/generated/openapi.yaml` → Go API и TypeScript Fetch SDK (Hey API).
+- Проверки: Go testing, golangci-lint, Oxlint, Oxfmt, tsc; hk и commitlint для Git hooks.
+- Окружение и задачи: mise; dev-процессы — mise daemons / pitchfork. Версии закреплены в конфигурации и manifests проекта.
+
+Реализуется каркас, а не сервис бронирования. Docker, публикация и бизнес-функции — следующие этапы.
 
 ## Установка
 
-<!-- Опишите установку: клонирование, зависимости, переменные окружения -->
+Нужны Git и **mise 2026.10.25**. Go, Node.js и остальные CLI устанавливает mise. Docker и WSL не требуются.
+
+Установите mise по [официальной инструкции](https://mise.jdx.dev/installing-mise.html). Для Windows есть проверяющий SHA-256 helper `scripts/install-mise.ps1`: он устанавливает mise в `~/.local/bin` без изменения постоянного PATH или профиля. Если политика PowerShell запрещает scripts, используйте ручную установку ZIP из официальной инструкции; менять ExecutionPolicy не нужно.
+
+Если mise установлен в пользовательский каталог, на Windows достаточно добавить его в PATH **текущего** терминала:
+
+```powershell
+$env:PATH = "$HOME\.local\bin;$env:PATH"
+mise --version
+```
+
+После клонирования:
 
 ```bash
 git clone https://github.com/yurapriv/ai-for-developers-project-386.git
 cd ai-for-developers-project-386
+mise trust
+mise install --locked
+mise run setup
+mise run setup:hooks
 ```
+
+Перед `mise trust` прочитайте `mise.toml`, `hk.pkl` и `scripts/`: задачи исполняют локальный код. Установка hooks явная и действует только на этот клон. Локальный launcher сохраняет абсолютный путь к mise, поэтому Git/GUI не требуют изменения постоянного PATH. После переноса mise повторите `mise run setup:hooks`.
+
+`setup` использует `npm ci` и Go modules; не устанавливает hooks, не меняет глобальные настройки и не запускает серверы. Секретов и `.env` для каркаса не требуется.
 
 ## Использование
 
-<!-- Добавьте примеры запуска и запись asciinema — именно это смотрит работодатель -->
+В двух терминалах:
+
+```bash
+mise run dev:backend
+mise run dev:frontend
+```
+
+Откройте http://127.0.0.1:5173. Go API отвечает на http://127.0.0.1:8080/health. Vite проксирует `/health` к бекенду, а React вызывает его через generated SDK. Бекенд принимает `LISTEN_ADDR` (по умолчанию `127.0.0.1:8080`); `127.0.0.1:0` позволяет ОС выбрать свободный порт.
+
+Фоновый запуск, состояние, логи и остановка:
+
+```bash
+mise daemons start backend frontend
+mise daemons ls
+mise daemons logs backend frontend
+mise daemons stop backend frontend
+```
+
+Foreground- и daemon-серверы используют одинаковые порты: сначала остановите один вариант перед запуском другого. Автозапуск при входе в ОС/переходе в каталог не настраивается; daemons — экспериментальная возможность mise.
+
+### Проверки и сборка
+
+```bash
+mise run check
+```
+
+Это же вызывает отдельный GitHub Actions workflow `quality` на каждый push: generation drift → форматирование → Go module integrity → lint → typecheck → сборка → Go test → проверка конфигурации hooks и новых сообщений коммитов. Старые шаблонные коммиты до принятого правила не переписываются.
+
+Отдельные команды: `mise run lint`, `mise run typecheck`, `mise run build`, `mise run test`. Результаты сборки — `dist/server` (`server.exe` в Windows) и `dist/frontend/`. `npm run format` — отдельная изменяющая файлы команда; `check` ничего не исправляет и не добавляет в индекс.
+
+Smoke-тест запускает настоящий Go-бинарник на назначенном ОС порту, проверяет HTTP-ответ по OpenAPI и завершает свой процесс. Vitest/Playwright пока не подключены: полный UI-сценарий появится вместе с функциональностью. Страницу с SDK нужно также проверить в браузере; один HTTP smoke не доказывает корректность интерфейса.
+
+### Изменение контракта
+
+Правьте `api/main.tsp`, затем запускайте:
+
+```bash
+mise run generate
+mise run check
+```
+
+Generated OpenAPI, Go и SDK сохраняются в Git и вручную не редактируются. `generate` заменяет только принадлежащие генераторам каталоги `api/generated/`, `internal/api/`, `frontend/src/api/generated/`. Проверка актуальности генерирует во временное дерево и сравнивает весь состав файлов, включая новые и удалённые.
+
+### Git hooks
+
+- pre-commit: быстрые проверки staged-файлов, без исправлений и автоматического staging;
+- commit-msg: Conventional Commits, например `feat: add meeting types`;
+- pre-push: полный `mise run check`.
+
+После нового клонирования установите hooks через `mise run setup:hooks`; CI работает независимо от их установки. Автоматических релизов пока нет.
+
+### Источники каркаса
+
+[Go getting started](https://go.dev/doc/tutorial/getting-started), [net/http](https://pkg.go.dev/net/http), [oapi-codegen std-http](https://github.com/oapi-codegen/oapi-codegen/blob/v2.8.2/docs/stdhttp-server.md), [Vite getting started](https://vite.dev/guide/), [TypeSpec](https://typespec.io/docs/), [Hey API](https://heyapi.dev/docs/openapi/typescript/get-started), [Dev Quality Gates](https://github.com/mokevnin/dev-quality-gates). Согласованные решения и границы: [.scratch/application-scaffold/map.md](.scratch/application-scaffold/map.md).
 
 ---
 
