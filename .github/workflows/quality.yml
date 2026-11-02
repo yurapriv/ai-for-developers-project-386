@@ -1,0 +1,27 @@
+name: quality
+
+on: push
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@6612f0ef07ed2a736cd1e00a94a065522dd41195 # v5
+        with:
+          version: '2026.10.25'
+          cache: false
+          install_args: --locked
+          experimental: true
+      - run: mise run setup
+      - run: mise run check
+        env:
+          CHECK_COMMIT_BASE: ${{ github.event.before }}
+          CHECK_COMMIT_HEAD: ${{ github.sha }}
