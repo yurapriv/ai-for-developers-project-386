@@ -21,6 +21,9 @@
 
 ## Agent skills
 
+Project skills are installed in `.agents/skills/` and pinned by `skills-lock.json`.
+Invoke a skill by name or by its `SKILL.md` path.
+
 ### Issue tracker
 
 Issues and specs live in local Markdown files under `.scratch/<feature>/`. Read `docs/agents/issue-tracker.md` before creating, reading, or updating tickets.

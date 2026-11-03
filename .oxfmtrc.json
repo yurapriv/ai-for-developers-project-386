@@ -4,6 +4,7 @@
     "frontend/src/api/generated/**",
     "api/generated/**",
     ".scratch/**",
+    ".agents/**",
     ".opencode/**",
     "docs/**",
     "package-lock.json",
