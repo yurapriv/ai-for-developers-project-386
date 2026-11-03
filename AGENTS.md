@@ -26,12 +26,12 @@ Invoke a skill by name or by its `SKILL.md` path.
 
 ### Issue tracker
 
-Issues and specs live in local Markdown files under `.scratch/<feature>/`. Read `docs/agents/issue-tracker.md` before creating, reading, or updating tickets.
+Issues and specs live in GitHub Issues for `yurapriv/ai-for-developers-project-386`. Read `docs/agents/issue-tracker.md` before creating, reading, or updating tickets.
 
 ### Triage labels
 
-Use the five default triage roles in local issue `Status:` lines. Read `docs/agents/triage-labels.md` when triaging issues.
+Use the five default GitHub triage labels. Read `docs/agents/triage-labels.md` when triaging issues.
 
 ### Domain docs
 
-Read `docs/agents/domain.md` before exploring the codebase or proposing domain changes; it defines the single-context `GLOSSARY.md` / `docs/adr/` convention, and those files are created lazily and may not exist yet.
+Read `docs/agents/domain.md` before exploring the codebase or proposing domain changes. It defines the single-context `GLOSSARY.md` / `docs/adr/` convention; these documents are created lazily.

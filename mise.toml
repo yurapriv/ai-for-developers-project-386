@@ -9,6 +9,7 @@ node = "24.22.2"
 golangci-lint = "2.15.0"
 hk = "2.11.0"
 pitchfork = "2.33.0"
+gh = "2.103.3"
 
 [env]
 GOTOOLCHAIN = "local"
