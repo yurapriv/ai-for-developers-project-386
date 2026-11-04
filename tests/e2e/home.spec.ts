@@ -111,27 +111,43 @@ test('приложение не зависит от /health', async ({ page, bas
 test.describe('мобильный экран 375 × 812', () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test('действия видимы и нет горизонтального переполнения', async ({ page }) => {
+  test('действия кликабельны и нет горизонтального переполнения', async ({ page }) => {
     const routes = [
       {
         path: '/',
         heading: 'Календарь встреч',
-        links: ['Записаться', 'Админка'],
+        links: [
+          { name: 'Записаться', target: '/booking', targetHeading: 'Запись на встречу' },
+          { name: 'Админка', target: '/admin', targetHeading: 'Админка' },
+        ],
       },
-      { path: '/booking', heading: 'Запись на встречу', links: ['На главную'] },
-      { path: '/admin', heading: 'Админка', links: ['На главную'] },
+      {
+        path: '/booking',
+        heading: 'Запись на встречу',
+        links: [{ name: 'На главную', target: '/', targetHeading: 'Календарь встреч' }],
+      },
+      {
+        path: '/admin',
+        heading: 'Админка',
+        links: [{ name: 'На главную', target: '/', targetHeading: 'Календарь встреч' }],
+      },
       {
         path: '/unknown-page',
         heading: 'Страница не найдена',
-        links: ['На главную'],
+        links: [{ name: 'На главную', target: '/', targetHeading: 'Календарь встреч' }],
       },
     ];
     for (const route of routes) {
       await page.goto(route.path);
       await expectSingleHeading(page, route.heading);
-      for (const name of route.links) {
-        await expect(link(page, name)).toBeVisible();
-        await expect(link(page, name)).toBeEnabled();
+      for (const item of route.links) {
+        await expect(link(page, item.name)).toBeVisible();
+        await expect(link(page, item.name)).toBeEnabled();
+        await link(page, item.name).click();
+        await expect(page).toHaveURL(item.target);
+        await expectSingleHeading(page, item.targetHeading);
+        await page.goBack();
+        await expect(page).toHaveURL(route.path);
       }
       await expect
         .poll(() =>
