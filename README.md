@@ -1,4 +1,4 @@
-# Календарь звонков
+# Календарь встреч
 
 [![hexlet-check](https://github.com/yurapriv/ai-for-developers-project-386/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/yurapriv/ai-for-developers-project-386/actions)
 
@@ -42,12 +42,12 @@
 ## Стек
 
 - Бекенд: Go, стандартный `net/http`, generated strict server от oapi-codegen.
-- Фронтенд: TypeScript, React, Vite; пока только технический экран состояния.
+- Фронтенд: TypeScript, React, Vite, React Router 7; статические страницы: главная, заглушки `/booking` и `/admin`, страница ошибки.
 - API: `api/main.tsp` → `api/generated/openapi.yaml` → Go API и TypeScript Fetch SDK (Hey API).
-- Проверки: Go testing, golangci-lint, Oxlint, Oxfmt, tsc; hk и commitlint для Git hooks.
+- Проверки: Go testing, golangci-lint, Oxlint, Oxfmt, tsc, Playwright; hk и commitlint для Git hooks.
 - Окружение и задачи: mise; dev-процессы — mise daemons / pitchfork. Версии закреплены в конфигурации и manifests проекта.
 
-Реализуется каркас, а не сервис бронирования. Docker, публикация и бизнес-функции — следующие этапы.
+Реализованы каркас и статические страницы этапа главной страницы: клиентская навигация без обращений к API. Бронирование, каталог типов встреч, формы, управление расписанием, вход, Docker и публикация — следующие этапы.
 
 ## Установка
 
@@ -70,12 +70,13 @@ cd ai-for-developers-project-386
 mise trust
 mise install --locked
 mise run setup
+mise run setup:e2e
 mise run setup:hooks
 ```
 
 Перед `mise trust` прочитайте `mise.toml`, `hk.pkl` и `scripts/`: задачи исполняют локальный код. Установка hooks явная и действует только на этот клон. Локальный launcher сохраняет абсолютный путь к mise, поэтому Git/GUI не требуют изменения постоянного PATH. После переноса mise повторите `mise run setup:hooks`.
 
-`setup` использует `npm ci` и Go modules; не устанавливает hooks, не меняет глобальные настройки и не запускает серверы. Секретов и `.env` для каркаса не требуется.
+`setup` использует `npm ci` и Go modules; не устанавливает hooks и браузеры, не меняет глобальные настройки и не запускает серверы. `setup:e2e` отдельно устанавливает Chromium для Playwright; в CI на Linux он же ставит системные зависимости (`--with-deps`). Секретов и `.env` для каркаса не требуется.
 
 ## Использование
 
@@ -86,7 +87,7 @@ mise run dev:backend
 mise run dev:frontend
 ```
 
-Откройте http://127.0.0.1:5173. Go API отвечает на http://127.0.0.1:8080/health. Vite проксирует `/health` к бекенду, а React вызывает его через generated SDK. Бекенд принимает `LISTEN_ADDR` (по умолчанию `127.0.0.1:8080`); `127.0.0.1:0` позволяет ОС выбрать свободный порт.
+Откройте http://127.0.0.1:5173. Главная страница «Календаря встреч» ведёт в гостевой раздел `/booking` и «Админку» `/admin`; неизвестные адреса показывают страницу ошибки. Страницы этого этапа статические и не обращаются к API — работающий Go-сервер для них не нужен. Go API по-прежнему отвечает на http://127.0.0.1:8080/health; Vite сохраняет прокси `/health` для следующих этапов, React его пока не использует. Бекенд принимает `LISTEN_ADDR` (по умолчанию `127.0.0.1:8080`); `127.0.0.1:0` позволяет ОС выбрать свободный порт.
 
 Фоновый запуск, состояние, логи и остановка:
 
@@ -105,11 +106,11 @@ Foreground- и daemon-серверы используют одинаковые �
 mise run check
 ```
 
-Это же вызывает отдельный GitHub Actions workflow `quality` на каждый push: generation drift → форматирование → Go module integrity → lint → typecheck → сборка → Go test → проверка конфигурации hooks и новых сообщений коммитов. Старые шаблонные коммиты до принятого правила не переписываются.
+Это же вызывает отдельный GitHub Actions workflow `quality` на каждый push: generation drift → форматирование → Go module integrity → lint → typecheck → сборка → Go test → браузерные тесты Playwright → проверка конфигурации hooks и новых сообщений коммитов. Старые шаблонные коммиты до принятого правила не переписываются. При падении Playwright отчёты `playwright-report/` и `test-results/` сохраняются артефактом с коротким сроком хранения.
 
-Отдельные команды: `mise run lint`, `mise run typecheck`, `mise run build`, `mise run test`. Результаты сборки — `dist/server` (`server.exe` в Windows) и `dist/frontend/`. `npm run format` — отдельная изменяющая файлы команда; `check` ничего не исправляет и не добавляет в индекс.
+Отдельные команды: `mise run lint`, `mise run typecheck`, `mise run build`, `mise run test`, `mise run setup:e2e`. `test` сам собирает фронтенд и запускает Go- и Playwright-тесты: предварительный `mise run build` не нужен. `check` использует свою же сборку без повторной сборки фронта. Результаты сборки — `dist/server` (`server.exe` в Windows) и `dist/frontend/`. `npm run format` — отдельная изменяющая файлы команда; `check` ничего не исправляет и не добавляет в индекс.
 
-Smoke-тест запускает настоящий Go-бинарник на назначенном ОС порту, проверяет HTTP-ответ по OpenAPI и завершает свой процесс. Vitest/Playwright пока не подключены: полный UI-сценарий появится вместе с функциональностью. Страницу с SDK нужно также проверить в браузере; один HTTP smoke не доказывает корректность интерфейса.
+Smoke-тест запускает настоящий Go-бинарник на назначенном ОС порту, проверяет HTTP-ответ по OpenAPI и завершает свой процесс. Браузерные сценарии этапа главной страницы (навигация, история, мобильная геометрия, клавиатура) покрыты Playwright с одним движком Chromium; Vitest не подключён. Сгенерированный SDK вернётся в употребление вместе с API-этапами — тогда его страницам снова понадобится проверка в браузере.
 
 ### Изменение контракта
 

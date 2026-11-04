@@ -3,6 +3,8 @@
 /node_modules/
 /.mise-cache/
 /.generated-check-*/
+/test-results/
+/playwright-report/
 hk.local.pkl
 .env.*
 !.env.example
