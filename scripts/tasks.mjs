@@ -114,6 +114,8 @@ function lint() {
     '--deny-warnings',
     'frontend',
     'scripts',
+    'playwright.config.ts',
+    'tests/e2e',
     'openapi-ts.config.ts',
     'commitlint.config.mjs',
   ]);
@@ -128,6 +130,11 @@ function build() {
     './cmd/server',
   ]);
   local('vite', ['build', '--config', 'frontend/vite.config.ts']);
+}
+
+// Shared by `test` and `check` so both run the same browser test suite.
+function browserTests() {
+  local('@playwright/test', ['test'], 'playwright');
 }
 
 function commitMessages() {
@@ -184,6 +191,15 @@ try {
         }
       }
       break;
+    case 'setup:e2e': {
+      // Only Chromium; CI Linux additionally needs system dependencies.
+      const args = ['install', 'chromium'];
+      if (process.platform === 'linux' && process.env.CI === 'true') {
+        args.push('--with-deps');
+      }
+      local('@playwright/test', args, 'playwright');
+      break;
+    }
     case 'generate':
       generation(false);
       break;
@@ -200,7 +216,9 @@ try {
       build();
       break;
     case 'test':
+      build();
       run('go', ['test', '-count=1', '-timeout=120s', './...']);
+      browserTests();
       break;
     case 'format':
       goFormat(
@@ -244,6 +262,7 @@ try {
       local('typescript', ['--noEmit'], 'tsc');
       build();
       run('go', ['test', '-count=1', '-timeout=120s', './...']);
+      browserTests();
       run('hk', ['validate']);
       commitMessages();
       break;

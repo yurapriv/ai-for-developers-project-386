@@ -22,6 +22,9 @@ run = "node scripts/tasks.mjs setup"
 run = "node scripts/tasks.mjs setup:hooks"
 env = { SCAFFOLD_MISE_BIN = "{{ mise_bin }}" }
 
+[tasks."setup:e2e"]
+run = "node scripts/tasks.mjs setup:e2e"
+
 [tasks.generate]
 run = "node scripts/tasks.mjs generate"
 
