@@ -137,6 +137,12 @@ function browserTests() {
   local('@playwright/test', ['test'], 'playwright');
 }
 
+// Shared Go and browser test sequence; callers own their build step.
+function runTests() {
+  run('go', ['test', '-count=1', '-timeout=120s', './...']);
+  browserTests();
+}
+
 function commitMessages() {
   const head = process.env.CHECK_COMMIT_HEAD || 'HEAD';
   if (head !== 'HEAD' && !/^[a-f0-9]{40}$/i.test(head)) throw new Error('Invalid commit HEAD');
@@ -217,8 +223,7 @@ try {
       break;
     case 'test':
       build();
-      run('go', ['test', '-count=1', '-timeout=120s', './...']);
-      browserTests();
+      runTests();
       break;
     case 'format':
       goFormat(
@@ -261,8 +266,7 @@ try {
       lint();
       local('typescript', ['--noEmit'], 'tsc');
       build();
-      run('go', ['test', '-count=1', '-timeout=120s', './...']);
-      browserTests();
+      runTests();
       run('hk', ['validate']);
       commitMessages();
       break;
