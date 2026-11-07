@@ -4,6 +4,17 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type Availability = {
+    window: BookingWindow;
+    slots: Array<Slot>;
+};
+
+export type BookingWindow = {
+    timeZone: string;
+    firstDay: string;
+    lastDay: string;
+};
+
 export type FieldProblem = {
     field: string;
     message: string;
@@ -30,6 +41,59 @@ export type Problem = {
     message: string;
     fields: Array<FieldProblem>;
 };
+
+export type Slot = {
+    start: string;
+    end: string;
+};
+
+export type GetAvailabilityData = {
+    body?: never;
+    path?: never;
+    query: {
+        meetingTypeId: number;
+        day: string;
+    };
+    url: '/availability';
+};
+
+export type GetAvailabilityErrors = {
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: Problem;
+    /**
+     * Client error
+     */
+    422: Problem;
+};
+
+export type GetAvailabilityError = GetAvailabilityErrors[keyof GetAvailabilityErrors];
+
+export type GetAvailabilityResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Availability;
+};
+
+export type GetAvailabilityResponse = GetAvailabilityResponses[keyof GetAvailabilityResponses];
+
+export type GetBookingWindowData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/booking-window';
+};
+
+export type GetBookingWindowResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: BookingWindow;
+};
+
+export type GetBookingWindowResponse = GetBookingWindowResponses[keyof GetBookingWindowResponses];
 
 export type GetHealthData = {
     body?: never;

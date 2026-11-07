@@ -12,6 +12,8 @@ export default defineConfig({
     proxy: {
       '/health': { target: 'http://127.0.0.1:8080' },
       '/meeting-types': { target: 'http://127.0.0.1:8080' },
+      '/booking-window': { target: 'http://127.0.0.1:8080' },
+      '/availability': { target: 'http://127.0.0.1:8080' },
     },
   },
   build: { outDir: '../dist/frontend', emptyOutDir: true },

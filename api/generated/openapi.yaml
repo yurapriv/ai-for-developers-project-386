@@ -4,6 +4,53 @@ info:
   version: 0.0.0
 tags: []
 paths:
+  /availability:
+    get:
+      operationId: getAvailability
+      parameters:
+        - name: meetingTypeId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          explode: false
+        - name: day
+          in: query
+          required: true
+          schema:
+            type: string
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /booking-window:
+    get:
+      operationId: getBookingWindow
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingWindow'
   /health:
     get:
       operationId: getHealth
@@ -52,6 +99,31 @@ paths:
                   $ref: '#/components/schemas/MeetingType'
 components:
   schemas:
+    Availability:
+      type: object
+      required:
+        - window
+        - slots
+      properties:
+        window:
+          $ref: '#/components/schemas/BookingWindow'
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/Slot'
+    BookingWindow:
+      type: object
+      required:
+        - timeZone
+        - firstDay
+        - lastDay
+      properties:
+        timeZone:
+          type: string
+        firstDay:
+          type: string
+        lastDay:
+          type: string
     FieldProblem:
       type: object
       required:
@@ -115,3 +187,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FieldProblem'
+    Slot:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time

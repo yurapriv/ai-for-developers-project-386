@@ -67,3 +67,41 @@ op listMeetingTypes(): {
   @statusCode statusCode: 200;
   @body body: MeetingType[];
 };
+
+model BookingWindow {
+  timeZone: string;
+  firstDay: string;
+  lastDay: string;
+}
+
+model Slot {
+  start: utcDateTime;
+  end: utcDateTime;
+}
+
+model Availability {
+  window: BookingWindow;
+  slots: Slot[];
+}
+
+@get
+@route("/booking-window")
+@operationId("getBookingWindow")
+op getBookingWindow(): {
+  @statusCode statusCode: 200;
+  @body body: BookingWindow;
+};
+
+@get
+@route("/availability")
+@operationId("getAvailability")
+op getAvailability(@query meetingTypeId: int64, @query day: string): {
+  @statusCode statusCode: 200;
+  @body body: Availability;
+} | {
+  @statusCode statusCode: 404;
+  @body body: Problem;
+} | {
+  @statusCode statusCode: 422;
+  @body body: Problem;
+};
