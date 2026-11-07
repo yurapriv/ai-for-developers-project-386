@@ -14,6 +14,7 @@
 - Focused tasks: `mise run lint`, `mise run typecheck`, `mise run build`, `mise run test`; a focused smoke run is `mise exec -- go test ./tests/smoke -run TestServerStartsAndMatchesContract -count=1`. It starts a real server; browser behavior is checked separately.
 - Keep the single TypeScript 6 compiler: Hey API uses the JavaScript compiler API absent from TypeScript 7. The package overrides patch vulnerable transitive dependencies; review them on upgrades.
 - Use Conventional Commits; commitlint checks new history and commit-msg after `mise run setup:hooks` explicitly installs local hooks.
+- Every commit message must reference the related GitHub issue, for example with a `Refs: #123` footer.
 
 ## Hexlet checks
 
