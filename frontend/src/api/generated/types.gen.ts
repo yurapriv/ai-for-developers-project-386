@@ -110,6 +110,22 @@ export type GetBookingWindowResponses = {
 
 export type GetBookingWindowResponse = GetBookingWindowResponses[keyof GetBookingWindowResponses];
 
+export type ListUpcomingBookingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/bookings';
+};
+
+export type ListUpcomingBookingsResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<Booking>;
+};
+
+export type ListUpcomingBookingsResponse = ListUpcomingBookingsResponses[keyof ListUpcomingBookingsResponses];
+
 export type CreateBookingData = {
     body: BookingInput;
     path?: never;

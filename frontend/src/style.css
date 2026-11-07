@@ -64,6 +64,9 @@ a:focus-visible {
   border-radius: 8px;
   padding: 16px;
 }
+.upcoming-bookings {
+  overflow-wrap: anywhere;
+}
 .meeting-type h3 {
   margin: 0 0 6px;
   font-size: 1.15rem;

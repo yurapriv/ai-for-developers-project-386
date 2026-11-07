@@ -68,6 +68,14 @@ func TestConcurrentOverlappingBookings(t *testing.T) {
 	if (x != 201 || y != 409) && (x != 409 || y != 201) {
 		t.Fatalf("statuses: %d, %d", x, y)
 	}
+	list := s.do(t, http.MethodGet, "/bookings", nil)
+	var bookings []struct {
+		Name string `json:"name"`
+	}
+	mustRead(t, list, &bookings)
+	if len(bookings) != 1 || bookings[0].Name != "Тест" {
+		t.Fatalf("expected exactly one successful booking: %+v", bookings)
+	}
 	r := s.do(t, http.MethodGet, fmt.Sprintf("/availability?meetingTypeId=%d&day=2026-12-31", a.ID), nil)
 	var availability struct {
 		Slots []struct {

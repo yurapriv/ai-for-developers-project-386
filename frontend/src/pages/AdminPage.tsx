@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { createMeetingType, loadMeetingTypes } from '../api/meetingTypes';
 import type { FieldProblem, MeetingType } from '../api/meetingTypes';
 import { MeetingTypeCatalog } from './MeetingTypeCatalog';
+import { UpcomingBookings } from './UpcomingBookings';
 
 type FormFields = {
   name: string;
@@ -130,6 +131,7 @@ export function AdminPage() {
   return (
     <main>
       <h1>Админка</h1>
+      <UpcomingBookings />
       <h2>Создание типа встречи</h2>
       {createdNotice && <output>Тип встречи создан</output>}
       <form className="meeting-type-form" noValidate onSubmit={handleSubmit}>

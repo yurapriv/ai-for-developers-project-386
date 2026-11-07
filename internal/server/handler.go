@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -134,6 +135,20 @@ func (o operations) CreateBooking(_ context.Context, req api.CreateBookingReques
 	booking := api.Booking{MeetingType: meetingType, Start: start, End: end, Name: name, Email: email}
 	o.bookings.items = append(o.bookings.items, booking)
 	return api.CreateBooking201JSONResponse(booking), nil
+}
+
+func (o operations) ListUpcomingBookings(_ context.Context, _ api.ListUpcomingBookingsRequestObject) (api.ListUpcomingBookingsResponseObject, error) {
+	o.bookings.mu.Lock()
+	defer o.bookings.mu.Unlock()
+	now := o.now()
+	items := make(api.ListUpcomingBookings200JSONResponse, 0)
+	for _, booking := range o.bookings.items {
+		if booking.Start.After(now) {
+			items = append(items, booking)
+		}
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Start.Before(items[j].Start) })
+	return items, nil
 }
 
 func (o operations) ListMeetingTypes(_ context.Context, _ api.ListMeetingTypesRequestObject) (api.ListMeetingTypesResponseObject, error) {

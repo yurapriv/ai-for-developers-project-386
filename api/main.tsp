@@ -121,6 +121,14 @@ model Booking {
   email: string;
 }
 
+@get
+@route("/bookings")
+@operationId("listUpcomingBookings")
+op listUpcomingBookings(): {
+  @statusCode statusCode: 200;
+  @body body: Booking[];
+};
+
 @post
 @route("/bookings")
 @operationId("createBooking")
