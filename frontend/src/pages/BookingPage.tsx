@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router';
 import { durationText, loadMeetingTypes } from '../api/meetingTypes';
 import type { MeetingType } from '../api/meetingTypes';
@@ -10,6 +10,18 @@ type CatalogState =
   | { kind: 'loading' }
   | { kind: 'error' }
   | { kind: 'ready'; meetingTypes: MeetingType[] };
+
+// A request can outlive the picker when the guest navigates away and back.
+let bookingPending = false;
+const pendingListeners = new Set<() => void>();
+function setBookingPending(value: boolean) {
+  bookingPending = value;
+  pendingListeners.forEach((listener) => listener());
+}
+function subscribePending(listener: () => void) {
+  pendingListeners.add(listener);
+  return () => pendingListeners.delete(listener);
+}
 
 export function BookingPage() {
   const [catalogState, setCatalogState] = useState<CatalogState>({ kind: 'loading' });
@@ -87,8 +99,7 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
   const [email, setEmail] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
-  const [pending, setPending] = useState(false);
-  const submitting = useRef(false);
+  const pending = useSyncExternalStore(subscribePending, () => bookingPending);
   const [booking, setBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
@@ -146,7 +157,7 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!slot || submitting.current) return;
+    if (!slot || bookingPending) return;
     const cleanName = name.trim();
     const cleanEmail = email.trim();
     const fields: Record<string, string> = {};
@@ -155,8 +166,7 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
       fields.email = 'Введите корректный email';
     setErrors(fields);
     if (Object.keys(fields).length) return;
-    submitting.current = true;
-    setPending(true);
+    setBookingPending(true);
     setMessage('');
     try {
       const result = await createBooking({
@@ -190,8 +200,7 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
     } catch {
       setMessage('Не удалось получить подтверждение записи');
     } finally {
-      submitting.current = false;
-      setPending(false);
+      setBookingPending(false);
     }
   }
 
@@ -200,8 +209,11 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
       <section>
         <h2>Запись подтверждена</h2>
         <p>
-          {booking.meetingType.name}, {day}, {time(booking.start)}–{time(booking.end)}{' '}
-          (Europe/Moscow)
+          {booking.meetingType.name},{' '}
+          {new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(
+            new Date(booking.start),
+          )}
+          , {time(booking.start)}–{time(booking.end)} (Europe/Moscow)
         </p>
         <p>
           {booking.name} · {booking.email}
@@ -214,7 +226,7 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
 
   return (
     <section>
-      <button type="button" onClick={onBack}>
+      <button type="button" onClick={onBack} disabled={pending}>
         К типам встреч
       </button>
       <h2>{meetingType.name}</h2>
@@ -224,6 +236,7 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
           День{' '}
           <select
             value={day}
+            disabled={pending}
             onChange={(event) => {
               setDay(event.target.value);
               setState('loading');
@@ -264,6 +277,7 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
               <button
                 type="button"
                 key={item.start}
+                disabled={pending}
                 aria-pressed={slot?.start === item.start}
                 onClick={() => setSlot(item)}
               >

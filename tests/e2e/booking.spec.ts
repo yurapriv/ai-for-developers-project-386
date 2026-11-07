@@ -51,6 +51,75 @@ test('устаревший слот и сдвиг окна используют 
 
 test.use({ timezoneId: 'Pacific/Honolulu' });
 
+test('запрос записи блокирует смену слота и повтор после возврата на мобильном экране', async ({
+  page,
+  request,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await request.post('http://127.0.0.1:8080/__e2e/reset');
+  await request.post('http://127.0.0.1:8080/meeting-types', {
+    data: { name: 'Встреча', description: 'Описание', durationMinutes: 30 },
+  });
+  await page.goto('/booking');
+  await page.getByRole('button', { name: 'Выбрать', exact: true }).press('Enter');
+  await page.getByLabel('День').selectOption('2027-01-01');
+  await page.getByRole('button', { name: '09:00–09:30' }).press('Enter');
+  await page.getByLabel('Имя').fill('Гость');
+  await page.getByLabel('Email').fill('guest@example.test');
+  let release: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let creates = 0;
+  await page.route('**/bookings', async (route) => {
+    if (route.request().method() === 'POST') {
+      creates++;
+      await held;
+    }
+    await route.continue();
+  });
+  try {
+    await page.getByRole('button', { name: 'Записаться' }).press('Enter');
+    await expect(page.getByLabel('День')).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'К типам встреч' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: '09:30–10:00' })).toBeDisabled();
+    await page.getByRole('link', { name: 'На главную' }).press('Enter');
+    await page.getByRole('link', { name: 'Записаться' }).press('Enter');
+    await page.getByRole('button', { name: 'Выбрать', exact: true }).press('Enter');
+    await expect(page.getByLabel('День')).toBeDisabled();
+    expect(creates).toBe(1);
+  } finally {
+    release?.();
+  }
+  await expect(page.getByLabel('День')).toBeEnabled();
+});
+
+test('дата подтверждения берётся из ответа о записи в московском часовом поясе', async ({
+  page,
+  request,
+}) => {
+  await request.post('http://127.0.0.1:8080/__e2e/reset');
+  await request.post('http://127.0.0.1:8080/meeting-types', {
+    data: { name: 'Встреча', description: 'Описание', durationMinutes: 30 },
+  });
+  await page.goto('/booking');
+  await page.getByRole('button', { name: 'Выбрать', exact: true }).click();
+  await page.getByLabel('День').selectOption('2027-01-01');
+  await page.getByRole('button', { name: '09:00–09:30' }).click();
+  await page.getByLabel('Имя').fill('Гость');
+  await page.getByLabel('Email').fill('guest@example.test');
+  // Exercise the authoritative response independently of the selected day.
+  await page.route('**/bookings', async (route) => {
+    const response = await route.fetch();
+    const booking = await response.json();
+    booking.start = '2027-01-01T18:00:00-12:00';
+    booking.end = '2027-01-01T18:30:00-12:00';
+    await route.fulfill({ response, json: booking });
+  });
+  await page.getByRole('button', { name: 'Записаться' }).click();
+  await expect(page.getByText('Встреча, 2027-01-02, 09:00–09:30 (Europe/Moscow)')).toBeVisible();
+});
+
 test('владелец создаёт тип, гость записывается и возвращается в каталог', async ({
   page,
   request,
@@ -144,19 +213,23 @@ test('два гостя разрешают конфликт без потери 
   await request.post('http://127.0.0.1:8080/meeting-types', {
     data: { name: 'Встреча', description: 'Описание', durationMinutes: 30 },
   });
-  const first = await browser.newPage();
-  const second = await browser.newPage();
+  const first = await browser.newPage({ viewport: { width: 375, height: 812 } });
+  const second = await browser.newPage({ viewport: { width: 375, height: 812 } });
   for (const page of [first, second]) {
     await page.goto('/booking');
-    await page.getByRole('button', { name: 'Выбрать', exact: true }).click();
-    await page.getByLabel('День').selectOption('2027-01-01');
-    await page.getByRole('button', { name: '10:00–10:30' }).click();
+    await page.getByRole('button', { name: 'Выбрать', exact: true }).press('Enter');
+    await page.getByLabel('День').focus();
+    await page.keyboard.press('Home');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: '10:00–10:30' }).press('Enter');
     await page.getByLabel('Имя').fill('Гость');
     await page.getByLabel('Email').fill('guest@example.test');
   }
-  await first.getByRole('button', { name: 'Записаться' }).click();
+  await first.getByRole('button', { name: 'Записаться' }).press('Enter');
   await expect(first.getByRole('heading', { name: 'Запись подтверждена' })).toBeVisible();
-  await second.getByRole('button', { name: 'Записаться' }).click();
+  await second.getByRole('button', { name: 'Записаться' }).press('Enter');
   await expect(
     second.getByText('Это время уже занято. Выберите другой свободный слот'),
   ).toBeVisible();
@@ -165,10 +238,10 @@ test('два гостя разрешают конфликт без потери 
     'aria-pressed',
     'false',
   );
-  await second.getByRole('button', { name: '10:30–11:00' }).click();
+  await second.getByRole('button', { name: '10:30–11:00' }).press('Enter');
   await expect(second.getByLabel('Имя')).toHaveValue('Гость');
   await expect(second.getByLabel('Email')).toHaveValue('guest@example.test');
-  await second.getByRole('button', { name: 'Записаться' }).click();
+  await second.getByRole('button', { name: 'Записаться' }).press('Enter');
   await expect(second.getByRole('heading', { name: 'Запись подтверждена' })).toBeVisible();
   await first.close();
   await second.close();

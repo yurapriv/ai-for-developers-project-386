@@ -60,6 +60,17 @@ func (o operations) window(now time.Time) api.BookingWindow {
 	return api.BookingWindow{FirstDay: day.Format("2006-01-02"), LastDay: day.AddDate(0, 0, 13).Format("2006-01-02"), TimeZone: "Europe/Moscow"}
 }
 
+// validSlotTime is shared by availability and booking so the displayed grid
+// and the server's final time validation follow the same scheduling rules.
+func (o operations) validSlotTime(start, end, now time.Time, window api.BookingWindow) bool {
+	start = start.In(o.location)
+	day := start.Format("2006-01-02")
+	minute := start.Hour()*60 + start.Minute()
+	endOfDay := time.Date(start.Year(), start.Month(), start.Day(), 18, 0, 0, 0, o.location)
+	return start.After(now) && day >= window.FirstDay && day <= window.LastDay &&
+		minute >= 540 && (minute-540)%30 == 0 && start.Second() == 0 && start.Nanosecond() == 0 && !end.After(endOfDay)
+}
+
 func (o operations) GetBookingWindow(_ context.Context, _ api.GetBookingWindowRequestObject) (api.GetBookingWindowResponseObject, error) {
 	return api.GetBookingWindow200JSONResponse(o.window(o.now())), nil
 }
@@ -87,8 +98,9 @@ func (o operations) GetAvailability(_ context.Context, req api.GetAvailabilityRe
 	start := day.Add(9 * time.Hour)
 	endOfDay := day.Add(18 * time.Hour)
 	for ; !start.Add(time.Duration(duration) * time.Minute).After(endOfDay); start = start.Add(30 * time.Minute) {
-		if start.After(now) && !o.bookings.occupied(start, start.Add(time.Duration(duration)*time.Minute)) {
-			slots = append(slots, api.Slot{Start: start, End: start.Add(time.Duration(duration) * time.Minute)})
+		end := start.Add(time.Duration(duration) * time.Minute)
+		if o.validSlotTime(start, end, now, window) && !o.bookings.occupied(start, end) {
+			slots = append(slots, api.Slot{Start: start, End: end})
 		}
 	}
 	return api.GetAvailability200JSONResponse{Window: window, Slots: slots}, nil
@@ -123,10 +135,8 @@ func (o operations) CreateBooking(_ context.Context, req api.CreateBookingReques
 	now := o.now()
 	start := b.Start.In(o.location)
 	end := start.Add(time.Duration(meetingType.DurationMinutes) * time.Minute)
-	day := start.Format("2006-01-02")
 	window := o.window(now)
-	minute := start.Hour()*60 + start.Minute()
-	if !start.After(now) || day < window.FirstDay || day > window.LastDay || minute < 540 || (minute-540)%30 != 0 || start.Second() != 0 || start.Nanosecond() != 0 || end.After(time.Date(start.Year(), start.Month(), start.Day(), 18, 0, 0, 0, o.location)) {
+	if !o.validSlotTime(start, end, now, window) {
 		return api.CreateBooking422JSONResponse(problem("Выберите допустимое время в окне записи", nil)), nil
 	}
 	if o.bookings.occupied(start, end) {
