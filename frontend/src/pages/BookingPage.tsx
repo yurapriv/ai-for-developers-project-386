@@ -97,9 +97,20 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
       ? getAvailability({ query: { meetingTypeId: meetingType.id, day } })
       : getBookingWindow();
     void request
-      .then((result) => {
+      .then(async (result) => {
         if (!active) return;
         if (!result.data) {
+          if (day && result.response?.status === 422) {
+            const current = await getBookingWindow();
+            if (!active) return;
+            if (current.data) {
+              setWindow(current.data);
+              setDay('');
+              setSlots(null);
+              setState('ready');
+              return;
+            }
+          }
           setState('error');
           return;
         }
@@ -164,6 +175,15 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
           setErrors(
             Object.fromEntries(result.error.fields.map((field) => [field.field, field.message])),
           );
+        if (
+          result.response.status === 409 ||
+          (result.response.status === 422 && result.error?.fields.length === 0)
+        ) {
+          setSlot(null);
+          setSlots(null);
+          setState('loading');
+          setRetry((value) => value + 1);
+        }
       } else {
         setMessage('Не удалось получить подтверждение записи');
       }

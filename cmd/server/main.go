@@ -32,6 +32,22 @@ func run() error {
 			return fmt.Errorf("invalid E2E_FIXED_NOW: %w", err)
 		}
 		clock = func() time.Time { return fixed }
+		if path := os.Getenv("E2E_CLOCK_FILE"); path != "" {
+			clock = func() time.Time {
+				value, err := os.ReadFile(path)
+				if errors.Is(err, os.ErrNotExist) {
+					return fixed
+				}
+				if err != nil {
+					panic(fmt.Errorf("read E2E clock: %w", err))
+				}
+				current, err := time.Parse(time.RFC3339Nano, string(value))
+				if err != nil {
+					panic(fmt.Errorf("invalid E2E clock: %w", err))
+				}
+				return current
+			}
+		}
 	}
 	handler, err := server.NewHandlerWithClock(clock)
 	if err != nil {
