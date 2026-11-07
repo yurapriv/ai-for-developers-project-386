@@ -4,8 +4,31 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type FieldProblem = {
+    field: string;
+    message: string;
+};
+
 export type Health = {
     status: 'ok';
+};
+
+export type MeetingType = {
+    id: number;
+    name: string;
+    description: string;
+    durationMinutes: number;
+};
+
+export type MeetingTypeInput = {
+    name: string;
+    description: string;
+    durationMinutes: number;
+};
+
+export type Problem = {
+    message: string;
+    fields: Array<FieldProblem>;
 };
 
 export type GetHealthData = {
@@ -23,3 +46,44 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type ListMeetingTypesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/meeting-types';
+};
+
+export type ListMeetingTypesResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<MeetingType>;
+};
+
+export type ListMeetingTypesResponse = ListMeetingTypesResponses[keyof ListMeetingTypesResponses];
+
+export type CreateMeetingTypeData = {
+    body: MeetingTypeInput;
+    path?: never;
+    query?: never;
+    url: '/meeting-types';
+};
+
+export type CreateMeetingTypeErrors = {
+    /**
+     * Client error
+     */
+    422: Problem;
+};
+
+export type CreateMeetingTypeError = CreateMeetingTypeErrors[keyof CreateMeetingTypeErrors];
+
+export type CreateMeetingTypeResponses = {
+    /**
+     * The request has succeeded and a new resource has been created as a result.
+     */
+    201: MeetingType;
+};
+
+export type CreateMeetingTypeResponse = CreateMeetingTypeResponses[keyof CreateMeetingTypeResponses];

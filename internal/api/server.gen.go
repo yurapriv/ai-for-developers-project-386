@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/oapi-codegen/runtime"
 )
 
 // Defines values for HealthStatus.
@@ -35,6 +36,12 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// FieldProblem defines model for FieldProblem.
+type FieldProblem struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
 // Health defines model for Health.
 type Health struct {
 	Status HealthStatus `json:"status"`
@@ -43,11 +50,41 @@ type Health struct {
 // HealthStatus defines model for Health.Status.
 type HealthStatus string
 
+// MeetingType defines model for MeetingType.
+type MeetingType struct {
+	Description     string `json:"description"`
+	DurationMinutes int64  `json:"durationMinutes"`
+	Id              int64  `json:"id"`
+	Name            string `json:"name"`
+}
+
+// MeetingTypeInput defines model for MeetingTypeInput.
+type MeetingTypeInput struct {
+	Description     string `json:"description"`
+	DurationMinutes int64  `json:"durationMinutes"`
+	Name            string `json:"name"`
+}
+
+// Problem defines model for Problem.
+type Problem struct {
+	Fields  []FieldProblem `json:"fields"`
+	Message string         `json:"message"`
+}
+
+// CreateMeetingTypeJSONRequestBody defines body for CreateMeetingType for application/json ContentType.
+type CreateMeetingTypeJSONRequestBody = MeetingTypeInput
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+
+	// (GET /meeting-types)
+	ListMeetingTypes(w http.ResponseWriter, r *http.Request)
+
+	// (POST /meeting-types)
+	CreateMeetingType(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -64,6 +101,34 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMeetingTypes operation middleware
+func (siw *ServerInterfaceWrapper) ListMeetingTypes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMeetingTypes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateMeetingType operation middleware
+func (siw *ServerInterfaceWrapper) CreateMeetingType(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateMeetingType(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -194,6 +259,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health", wrapper.GetHealth)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/meeting-types", wrapper.ListMeetingTypes)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/meeting-types", wrapper.CreateMeetingType)
 
 	return m
 }
@@ -219,11 +286,74 @@ func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	return err
 }
 
+type ListMeetingTypesRequestObject struct {
+}
+
+type ListMeetingTypesResponseObject interface {
+	VisitListMeetingTypesResponse(w http.ResponseWriter) error
+}
+
+type ListMeetingTypes200JSONResponse []MeetingType
+
+func (response ListMeetingTypes200JSONResponse) VisitListMeetingTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMeetingTypeRequestObject struct {
+	Body *CreateMeetingTypeJSONRequestBody
+}
+
+type CreateMeetingTypeResponseObject interface {
+	VisitCreateMeetingTypeResponse(w http.ResponseWriter) error
+}
+
+type CreateMeetingType201JSONResponse MeetingType
+
+func (response CreateMeetingType201JSONResponse) VisitCreateMeetingTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMeetingType422JSONResponse Problem
+
+func (response CreateMeetingType422JSONResponse) VisitCreateMeetingTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+
+	// (GET /meeting-types)
+	ListMeetingTypes(ctx context.Context, request ListMeetingTypesRequestObject) (ListMeetingTypesResponseObject, error)
+
+	// (POST /meeting-types)
+	CreateMeetingType(ctx context.Context, request CreateMeetingTypeRequestObject) (CreateMeetingTypeResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -289,16 +419,75 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListMeetingTypes operation middleware
+func (sh *strictHandler) ListMeetingTypes(w http.ResponseWriter, r *http.Request) {
+	var request ListMeetingTypesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMeetingTypes(ctx, request.(ListMeetingTypesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMeetingTypes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMeetingTypesResponseObject); ok {
+		if err := validResponse.VisitListMeetingTypesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateMeetingType operation middleware
+func (sh *strictHandler) CreateMeetingType(w http.ResponseWriter, r *http.Request) {
+	var request CreateMeetingTypeRequestObject
+
+	var body CreateMeetingTypeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateMeetingType(ctx, request.(CreateMeetingTypeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateMeetingType")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateMeetingTypeResponseObject); ok {
+		if err := validResponse.VisitCreateMeetingTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"RJCxTvQwEIRfJZr/L6NLBJ07oIDrKOgQhXH2zr7L7Rp7g4ROfndk50SqHWVn4v3mCieXKEysGeaK7Dxd",
-	"bJMvZGf1VcUkkZIGWi1qdWmKeLnAvEPO+OihP5FgkDUFPqKUHom+lpBoqp5bavPJ54mcolRj4IPUH2rQ",
-	"ue6e7Ew82dQ9ipwDH7uH1z16fFPKQRgG427cjSg9JBLbGGBw3z71iFZ9u27wfwBH0joqhdUgvJ9g8Ex6",
-	"Q6yX5iicV8C7cazDCStxC9oY5+BadDhl4a2pqv4nOsDg37BVOazbPNxeaJQTZZdC1BXhzVNXC6Ksnbe5",
-	"y4tzRBNNu+oupfwOAA==",
+	"vFRNb9NAEP0rq4GjiUOoOPhGIwGRqNRDb4jDxjuxt7Vnl9kxKKr839FunDTBKU2g9JSN5+PNe/tm76F0",
+	"rXeEJAGKewhlja1Ox48WG3PNbtlgG/97dh5ZLKboKkbjQdYeoYAgbKmCPoMWQ9AVHon1GTB+7yyjgeLr",
+	"0OKh4Fu2LXDLWywlNvuMupF6DB9ES5dOSF0bu7m7vQaPIA5Vx4CuEMVSdZO+/45mMJRsvVhHRymbjnUM",
+	"XlnqZNDHcasFCrAk7y9gh2hJsEKOVdacmEi6PUFOa2BIzQ4GHo/3BP8F+U5eSoTTuP01rT/7N52sYJsO",
+	"rxlXUMCr/GEl8mEf8oNl6HdAmlmvzzL9NjHbTjCeOpZYWrnUzEoTY3PdIBnN6tK5O0uV+nC9gAx+IId0",
+	"HzCdTCfTOInzSNpbKOBd+pSB11Ingnm926YK0w1HRZKGCwMFfEIZ9i3OHLyjsBFrNp3Gn9KRIKVC7X1j",
+	"y1Sa34aNIzZaPaXkgJBYHlgKbmpUUSoMomodVOjKEtGgmcTsPoO83Zj0TRQsPErjiw2yZ+fwr2xOMsge",
+	"4Ngf53LNwLtwhNmcUQvuQ23MhUEunVk/2x2NHoP+0MbCHfYjVd/+D/yzxFOajNKK8KdiDK7jElPCEpFU",
+	"mcQzSgelY7hrZBKv6mI2e7bBdy/EeOh5Y5FEIbPj5Oe+/zUA",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
