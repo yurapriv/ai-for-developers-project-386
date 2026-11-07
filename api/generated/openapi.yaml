@@ -51,6 +51,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/BookingWindow'
+  /bookings:
+    post:
+      operationId: createBooking
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingInput'
   /health:
     get:
       operationId: getHealth
@@ -111,6 +146,45 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Slot'
+    Booking:
+      type: object
+      required:
+        - meetingType
+        - start
+        - end
+        - name
+        - email
+      properties:
+        meetingType:
+          $ref: '#/components/schemas/MeetingType'
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        name:
+          type: string
+        email:
+          type: string
+    BookingInput:
+      type: object
+      required:
+        - meetingTypeId
+        - start
+        - name
+        - email
+      properties:
+        meetingTypeId:
+          type: integer
+          format: int64
+        start:
+          type: string
+          format: date-time
+        name:
+          type: string
+        email:
+          type: string
     BookingWindow:
       type: object
       required:

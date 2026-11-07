@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
 	"time"
 	_ "time/tzdata"
+	"unicode"
+	"unicode/utf8"
 
 	middleware "github.com/oapi-codegen/nethttp-middleware"
 	"github.com/yurapriv/ai-for-developers-project-386/internal/api"
@@ -26,6 +30,21 @@ type operations struct {
 	meetingTypes *catalog.Store
 	now          func() time.Time
 	location     *time.Location
+	bookings     *bookingStore
+}
+
+type bookingStore struct {
+	mu    sync.Mutex
+	items []api.Booking
+}
+
+func (s *bookingStore) occupied(start, end time.Time) bool {
+	for _, b := range s.items {
+		if start.Before(b.End) && b.Start.Before(end) {
+			return true
+		}
+	}
+	return false
 }
 
 var _ api.StrictServerInterface = operations{}
@@ -62,14 +81,59 @@ func (o operations) GetAvailability(_ context.Context, req api.GetAvailabilityRe
 		return api.GetAvailability422JSONResponse(problem("Выберите день в окне записи", nil)), nil
 	}
 	slots := []api.Slot{}
+	o.bookings.mu.Lock()
+	defer o.bookings.mu.Unlock()
 	start := day.Add(9 * time.Hour)
 	endOfDay := day.Add(18 * time.Hour)
 	for ; !start.Add(time.Duration(duration) * time.Minute).After(endOfDay); start = start.Add(30 * time.Minute) {
-		if start.After(now) {
+		if start.After(now) && !o.bookings.occupied(start, start.Add(time.Duration(duration)*time.Minute)) {
 			slots = append(slots, api.Slot{Start: start, End: start.Add(time.Duration(duration) * time.Minute)})
 		}
 	}
 	return api.GetAvailability200JSONResponse{Window: window, Slots: slots}, nil
+}
+
+func (o operations) CreateBooking(_ context.Context, req api.CreateBookingRequestObject) (api.CreateBookingResponseObject, error) {
+	b := req.Body
+	var meetingType api.MeetingType
+	for _, item := range o.meetingTypes.List() {
+		if item.Id == b.MeetingTypeId {
+			meetingType = api.MeetingType{Id: item.Id, Name: item.Name, Description: item.Description, DurationMinutes: item.DurationMinutes}
+			break
+		}
+	}
+	if meetingType.DurationMinutes == 0 {
+		return api.CreateBooking404JSONResponse(problem("Тип встречи не найден", nil)), nil
+	}
+	name, email := strings.TrimSpace(b.Name), strings.TrimSpace(b.Email)
+	var fields []catalog.FieldError
+	if utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 100 {
+		fields = append(fields, catalog.FieldError{Field: "name", Message: "Введите имя от 1 до 100 символов"})
+	}
+	parts := strings.Split(email, "@")
+	if utf8.RuneCountInString(email) > 254 || len(parts) != 2 || parts[0] == "" || parts[1] == "" || strings.IndexFunc(email, unicode.IsSpace) >= 0 {
+		fields = append(fields, catalog.FieldError{Field: "email", Message: "Введите корректный email"})
+	}
+	if len(fields) > 0 {
+		return api.CreateBooking422JSONResponse(problem(fieldValidationMessage, fields)), nil
+	}
+	o.bookings.mu.Lock()
+	defer o.bookings.mu.Unlock()
+	now := o.now()
+	start := b.Start.In(o.location)
+	end := start.Add(time.Duration(meetingType.DurationMinutes) * time.Minute)
+	day := start.Format("2006-01-02")
+	window := o.window(now)
+	minute := start.Hour()*60 + start.Minute()
+	if !start.After(now) || day < window.FirstDay || day > window.LastDay || minute < 540 || (minute-540)%30 != 0 || start.Second() != 0 || start.Nanosecond() != 0 || end.After(time.Date(start.Year(), start.Month(), start.Day(), 18, 0, 0, 0, o.location)) {
+		return api.CreateBooking422JSONResponse(problem("Выберите допустимое время в окне записи", nil)), nil
+	}
+	if o.bookings.occupied(start, end) {
+		return api.CreateBooking409JSONResponse(problem("Это время уже занято. Выберите другой свободный слот", nil)), nil
+	}
+	booking := api.Booking{MeetingType: meetingType, Start: start, End: end, Name: name, Email: email}
+	o.bookings.items = append(o.bookings.items, booking)
+	return api.CreateBooking201JSONResponse(booking), nil
 }
 
 func (o operations) ListMeetingTypes(_ context.Context, _ api.ListMeetingTypesRequestObject) (api.ListMeetingTypesResponseObject, error) {
@@ -140,7 +204,7 @@ func NewHandlerWithClock(now func() time.Time) (http.Handler, error) {
 	if err := spec.Validate(context.Background()); err != nil {
 		return nil, err
 	}
-	ops := operations{meetingTypes: catalog.NewStore(), now: now, location: location}
+	ops := operations{meetingTypes: catalog.NewStore(), now: now, location: location, bookings: &bookingStore{}}
 	strict := api.NewStrictHandlerWithOptions(ops, nil, api.StrictHTTPServerOptions{
 		// Requests that cannot be decoded still answer with the declared Problem body.
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, _ error) {
@@ -152,6 +216,9 @@ func NewHandlerWithClock(now func() time.Time) (http.Handler, error) {
 	if isTestModeEnabled() {
 		// Test-only hook outside the contract: resets in-memory state for isolated browser scenarios.
 		mux.HandleFunc(testOnlyResetRoute, func(w http.ResponseWriter, _ *http.Request) {
+			ops.bookings.mu.Lock()
+			defer ops.bookings.mu.Unlock()
+			ops.bookings.items = nil
 			ops.meetingTypes.Reset()
 			w.WriteHeader(http.StatusNoContent)
 		})

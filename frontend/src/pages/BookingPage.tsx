@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { durationText, loadMeetingTypes } from '../api/meetingTypes';
 import type { MeetingType } from '../api/meetingTypes';
-import { getAvailability, getBookingWindow } from '../api/generated';
-import type { BookingWindow, Slot } from '../api/generated';
+import { createBooking, getAvailability, getBookingWindow } from '../api/generated';
+import type { Booking, BookingWindow, Slot } from '../api/generated';
 import { MeetingTypeCatalog } from './MeetingTypeCatalog';
 
 type CatalogState =
@@ -83,6 +83,13 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
   const [slot, setSlot] = useState<Slot | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [retry, setRetry] = useState(0);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState('');
+  const [pending, setPending] = useState(false);
+  const submitting = useRef(false);
+  const [booking, setBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -125,6 +132,65 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
       hour: '2-digit',
       minute: '2-digit',
     }).format(new Date(value));
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!slot || submitting.current) return;
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
+    const fields: Record<string, string> = {};
+    if (!cleanName || [...cleanName].length > 100) fields.name = 'Введите имя от 1 до 100 символов';
+    if ([...cleanEmail].length > 254 || !/^[^@\s]+@[^@\s]+$/u.test(cleanEmail))
+      fields.email = 'Введите корректный email';
+    setErrors(fields);
+    if (Object.keys(fields).length) return;
+    submitting.current = true;
+    setPending(true);
+    setMessage('');
+    try {
+      const result = await createBooking({
+        body: {
+          meetingTypeId: meetingType.id,
+          start: slot.start,
+          name: cleanName,
+          email: cleanEmail,
+        },
+      });
+      if (result.data) {
+        setBooking(result.data);
+      } else if (result.response) {
+        setMessage(result.error?.message ?? 'Не удалось создать запись');
+        if (result.error?.fields)
+          setErrors(
+            Object.fromEntries(result.error.fields.map((field) => [field.field, field.message])),
+          );
+      } else {
+        setMessage('Не удалось получить подтверждение записи');
+      }
+    } catch {
+      setMessage('Не удалось получить подтверждение записи');
+    } finally {
+      submitting.current = false;
+      setPending(false);
+    }
+  }
+
+  if (booking)
+    return (
+      <section>
+        <h2>Запись подтверждена</h2>
+        <p>
+          {booking.meetingType.name}, {day}, {time(booking.start)}–{time(booking.end)}{' '}
+          (Europe/Moscow)
+        </p>
+        <p>
+          {booking.name} · {booking.email}
+        </p>
+        <button type="button" onClick={onBack}>
+          Создать ещё одну запись
+        </button>
+      </section>
+    );
 
   return (
     <section>
@@ -189,11 +255,37 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
           <p>На этот день свободного времени нет</p>
         ))}
       {slot && (
-        <p>
-          Выбрано: {meetingType.name}, {durationText(meetingType.durationMinutes)}, {day},{' '}
-          {time(slot.start)}–{time(slot.end)} (Europe/Moscow)
-        </p>
+        <>
+          <p>
+            Выбрано: {meetingType.name}, {durationText(meetingType.durationMinutes)}, {day},{' '}
+            {time(slot.start)}–{time(slot.end)} (Europe/Moscow)
+          </p>
+          <form onSubmit={(event) => void submit(event)} noValidate>
+            <label>
+              Имя{' '}
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                aria-invalid={!!errors.name}
+              />
+            </label>
+            {errors.name && <p role="alert">{errors.name}</p>}
+            <label>
+              Email{' '}
+              <input
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                aria-invalid={!!errors.email}
+              />
+            </label>
+            {errors.email && <p role="alert">{errors.email}</p>}
+            <button type="submit" disabled={pending}>
+              {pending ? 'Отправка…' : 'Записаться'}
+            </button>
+          </form>
+        </>
       )}
+      {message && <p role="alert">{message}</p>}
     </section>
   );
 }

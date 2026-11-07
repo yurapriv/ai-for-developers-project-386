@@ -9,6 +9,21 @@ export type Availability = {
     slots: Array<Slot>;
 };
 
+export type Booking = {
+    meetingType: MeetingType;
+    start: string;
+    end: string;
+    name: string;
+    email: string;
+};
+
+export type BookingInput = {
+    meetingTypeId: number;
+    start: string;
+    name: string;
+    email: string;
+};
+
 export type BookingWindow = {
     timeZone: string;
     firstDay: string;
@@ -94,6 +109,39 @@ export type GetBookingWindowResponses = {
 };
 
 export type GetBookingWindowResponse = GetBookingWindowResponses[keyof GetBookingWindowResponses];
+
+export type CreateBookingData = {
+    body: BookingInput;
+    path?: never;
+    query?: never;
+    url: '/bookings';
+};
+
+export type CreateBookingErrors = {
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: Problem;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: Problem;
+    /**
+     * Client error
+     */
+    422: Problem;
+};
+
+export type CreateBookingError = CreateBookingErrors[keyof CreateBookingErrors];
+
+export type CreateBookingResponses = {
+    /**
+     * The request has succeeded and a new resource has been created as a result.
+     */
+    201: Booking;
+};
+
+export type CreateBookingResponse = CreateBookingResponses[keyof CreateBookingResponses];
 
 export type GetHealthData = {
     body?: never;

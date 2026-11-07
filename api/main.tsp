@@ -105,3 +105,35 @@ op getAvailability(@query meetingTypeId: int64, @query day: string): {
   @statusCode statusCode: 422;
   @body body: Problem;
 };
+
+model BookingInput {
+  meetingTypeId: int64;
+  start: offsetDateTime;
+  name: string;
+  email: string;
+}
+
+model Booking {
+  meetingType: MeetingType;
+  start: offsetDateTime;
+  end: offsetDateTime;
+  name: string;
+  email: string;
+}
+
+@post
+@route("/bookings")
+@operationId("createBooking")
+op createBooking(@body body: BookingInput): {
+  @statusCode statusCode: 201;
+  @body body: Booking;
+} | {
+  @statusCode statusCode: 404;
+  @body body: Problem;
+} | {
+  @statusCode statusCode: 409;
+  @body body: Problem;
+} | {
+  @statusCode statusCode: 422;
+  @body body: Problem;
+};
