@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/yurapriv/ai-for-developers-project-386/internal/server"
 )
@@ -27,6 +28,9 @@ func run() error {
 	handler, err := server.NewHandler()
 	if err != nil {
 		return fmt.Errorf("initialize API: %w", err)
+	}
+	if dir := os.Getenv("FRONTEND_DIR"); dir != "" {
+		handler = server.WithFrontend(handler, os.DirFS(dir))
 	}
 	address := os.Getenv("LISTEN_ADDR")
 	if address == "" {
