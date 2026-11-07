@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"time"
+	_ "time/tzdata"
 
 	middleware "github.com/oapi-codegen/nethttp-middleware"
 	"github.com/yurapriv/ai-for-developers-project-386/internal/api"
@@ -22,12 +24,52 @@ const (
 // operations implements the generated strict server for the calendar booking API.
 type operations struct {
 	meetingTypes *catalog.Store
+	now          func() time.Time
+	location     *time.Location
 }
 
 var _ api.StrictServerInterface = operations{}
 
 func (operations) GetHealth(_ context.Context, _ api.GetHealthRequestObject) (api.GetHealthResponseObject, error) {
 	return api.GetHealth200JSONResponse{Status: api.Ok}, nil
+}
+
+func (o operations) window(now time.Time) api.BookingWindow {
+	local := now.In(o.location)
+	day := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, o.location)
+	return api.BookingWindow{FirstDay: day.Format("2006-01-02"), LastDay: day.AddDate(0, 0, 13).Format("2006-01-02"), TimeZone: "Europe/Moscow"}
+}
+
+func (o operations) GetBookingWindow(_ context.Context, _ api.GetBookingWindowRequestObject) (api.GetBookingWindowResponseObject, error) {
+	return api.GetBookingWindow200JSONResponse(o.window(o.now())), nil
+}
+
+func (o operations) GetAvailability(_ context.Context, req api.GetAvailabilityRequestObject) (api.GetAvailabilityResponseObject, error) {
+	var duration int64
+	for _, item := range o.meetingTypes.List() {
+		if item.Id == req.Params.MeetingTypeId {
+			duration = item.DurationMinutes
+			break
+		}
+	}
+	if duration == 0 {
+		return api.GetAvailability404JSONResponse(problem("Тип встречи не найден", nil)), nil
+	}
+	now := o.now()
+	window := o.window(now)
+	day, err := time.ParseInLocation("2006-01-02", req.Params.Day, o.location)
+	if err != nil || day.Format("2006-01-02") != req.Params.Day || req.Params.Day < window.FirstDay || req.Params.Day > window.LastDay {
+		return api.GetAvailability422JSONResponse(problem("Выберите день в окне записи", nil)), nil
+	}
+	slots := []api.Slot{}
+	start := day.Add(9 * time.Hour)
+	endOfDay := day.Add(18 * time.Hour)
+	for ; !start.Add(time.Duration(duration) * time.Minute).After(endOfDay); start = start.Add(30 * time.Minute) {
+		if start.After(now) {
+			slots = append(slots, api.Slot{Start: start, End: start.Add(time.Duration(duration) * time.Minute)})
+		}
+	}
+	return api.GetAvailability200JSONResponse{Window: window, Slots: slots}, nil
 }
 
 func (o operations) ListMeetingTypes(_ context.Context, _ api.ListMeetingTypesRequestObject) (api.ListMeetingTypesResponseObject, error) {
@@ -82,6 +124,15 @@ func isTestModeEnabled() bool {
 }
 
 func NewHandler() (http.Handler, error) {
+	return NewHandlerWithClock(time.Now)
+}
+
+// NewHandlerWithClock permits deterministic time at the application boundary.
+func NewHandlerWithClock(now func() time.Time) (http.Handler, error) {
+	location, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		return nil, err
+	}
 	spec, err := api.GetSpec()
 	if err != nil {
 		return nil, err
@@ -89,7 +140,7 @@ func NewHandler() (http.Handler, error) {
 	if err := spec.Validate(context.Background()); err != nil {
 		return nil, err
 	}
-	ops := operations{meetingTypes: catalog.NewStore()}
+	ops := operations{meetingTypes: catalog.NewStore(), now: now, location: location}
 	strict := api.NewStrictHandlerWithOptions(ops, nil, api.StrictHTTPServerOptions{
 		// Requests that cannot be decoded still answer with the declared Problem body.
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, _ error) {

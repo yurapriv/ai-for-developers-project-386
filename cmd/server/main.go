@@ -25,7 +25,15 @@ func main() {
 }
 
 func run() error {
-	handler, err := server.NewHandler()
+	clock := time.Now
+	if os.Getenv("E2E_MODE") == "1" && os.Getenv("E2E_FIXED_NOW") != "" {
+		fixed, err := time.Parse(time.RFC3339Nano, os.Getenv("E2E_FIXED_NOW"))
+		if err != nil {
+			return fmt.Errorf("invalid E2E_FIXED_NOW: %w", err)
+		}
+		clock = func() time.Time { return fixed }
+	}
+	handler, err := server.NewHandlerWithClock(clock)
 	if err != nil {
 		return fmt.Errorf("initialize API: %w", err)
 	}

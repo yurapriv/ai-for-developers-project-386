@@ -15,7 +15,7 @@ export default defineConfig({
     {
       command: 'node scripts/serve-api.mjs',
       url: 'http://127.0.0.1:8080/health',
-      env: { LISTEN_ADDR: '127.0.0.1:8080', E2E_MODE: '1' },
+      env: { LISTEN_ADDR: '127.0.0.1:8080', E2E_MODE: '1', E2E_FIXED_NOW: '2026-12-31T17:00:00Z' },
       reuseExistingServer: false,
     },
     {
