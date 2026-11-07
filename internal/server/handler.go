@@ -14,6 +14,9 @@ import (
 const (
 	fieldValidationMessage  = "Проверьте данные формы"
 	malformedRequestMessage = "Данные запроса не соответствуют форме"
+	// Test-only isolation hook for browser scenarios; outside the API contract.
+	testOnlyResetPath  = "/__e2e/reset"
+	testOnlyResetRoute = http.MethodPost + " " + testOnlyResetPath
 )
 
 // operations implements the generated strict server for the calendar booking API.
@@ -97,13 +100,21 @@ func NewHandler() (http.Handler, error) {
 	handler := api.HandlerFromMux(strict, mux)
 	if isTestModeEnabled() {
 		// Test-only hook outside the contract: resets in-memory state for isolated browser scenarios.
-		mux.HandleFunc(http.MethodPost+" /__e2e/reset", func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc(testOnlyResetRoute, func(w http.ResponseWriter, _ *http.Request) {
 			ops.meetingTypes.Reset()
 			w.WriteHeader(http.StatusNoContent)
 		})
 	}
 	return middleware.OapiRequestValidatorWithOptions(spec, &middleware.Options{
-		ErrorHandlerWithOpts: func(_ context.Context, _ error, w http.ResponseWriter, _ *http.Request, _ middleware.ErrorHandlerOpts) {
+		Skipper: func(request *http.Request) bool {
+			return request.Method == http.MethodPost && request.URL.Path == testOnlyResetPath
+		},
+		ErrorHandlerWithOpts: func(_ context.Context, err error, w http.ResponseWriter, _ *http.Request, opts middleware.ErrorHandlerOpts) {
+			if opts.MatchedRoute == nil {
+				// Routes outside the contract keep the middleware default answer.
+				http.Error(w, err.Error(), opts.StatusCode)
+				return
+			}
 			writeProblem(w, malformedRequestMessage)
 		},
 	})(handler), nil

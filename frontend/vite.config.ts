@@ -11,6 +11,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/health': { target: 'http://127.0.0.1:8080' },
+      '/meeting-types': { target: 'http://127.0.0.1:8080' },
     },
   },
   build: { outDir: '../dist/frontend', emptyOutDir: true },

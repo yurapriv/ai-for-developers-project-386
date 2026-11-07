@@ -34,7 +34,9 @@ test('кнопка «Записаться» ведёт на страницу з�
   await link(page, 'Записаться').click();
   await expect(page).toHaveURL('/booking');
   await expectSingleHeading(page, 'Запись на встречу');
-  await expect(page.getByText('Этот раздел пока в разработке', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('main').getByRole('heading', { level: 2, name: 'Типы встреч', exact: true }),
+  ).toBeVisible();
   await link(page, 'На главную').click();
   await expect(page).toHaveURL('/');
   await expectSingleHeading(page, 'Календарь встреч');
@@ -46,7 +48,14 @@ test('кнопка «Админка» ведёт в админку', async ({ pa
   await link(page, 'Админка').click();
   await expect(page).toHaveURL('/admin');
   await expectSingleHeading(page, 'Админка');
-  await expect(page.getByText('Этот раздел пока в разработке', { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole('main')
+      .getByRole('heading', { level: 2, name: 'Создание типа встречи', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('main').getByRole('button', { name: 'Создать тип встречи' }),
+  ).toBeVisible();
   await link(page, 'На главную').click();
   await expect(page).toHaveURL('/');
   await expectSingleHeading(page, 'Календарь встреч');

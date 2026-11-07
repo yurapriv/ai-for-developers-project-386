@@ -20,6 +20,10 @@ h1 {
 p {
   margin: 0 0 24px;
 }
+output {
+  display: block;
+  margin: 0 0 24px;
+}
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -46,4 +50,85 @@ a {
 a:focus-visible {
   outline: 3px solid #da8600;
   outline-offset: 3px;
+}
+.catalog {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.meeting-type {
+  background: #ffffff;
+  border: 1px solid #d7e0ef;
+  border-radius: 8px;
+  padding: 16px;
+}
+.meeting-type h3 {
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+}
+.meeting-type p {
+  margin: 0 0 4px;
+}
+.meeting-type .duration {
+  margin: 0;
+  color: #526077;
+}
+.form-field {
+  margin: 0 0 16px;
+}
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #9db1dd;
+  border-radius: 8px;
+  background: #ffffff;
+}
+textarea {
+  resize: vertical;
+}
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #da8600;
+  outline-offset: 2px;
+}
+.field-error {
+  color: #b3261e;
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+}
+.form-hint {
+  color: #526077;
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+}
+button {
+  font: inherit;
+  color: #ffffff;
+  background: #244cad;
+  border: 1px solid #244cad;
+  border-radius: 8px;
+  padding: 10px 18px;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+button:not(:disabled):hover {
+  background: #1d3f8f;
+}
+button:focus-visible {
+  outline: 3px solid #da8600;
+  outline-offset: 2px;
 }
