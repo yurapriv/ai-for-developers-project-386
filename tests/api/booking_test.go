@@ -3,27 +3,14 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/yurapriv/ai-for-developers-project-386/internal/server"
 )
 
 func TestBookingOccupiesCalendar(t *testing.T) {
 	now, _ := time.Parse(time.RFC3339, "2026-12-31T05:00:00Z")
-	handler, err := server.NewHandlerWithClock(func() time.Time { return now })
-	if err != nil {
-		t.Fatal(err)
-	}
-	httpServer := httptest.NewServer(handler)
-	defer httpServer.Close()
-	contract, err := loadContract()
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := &apiServer{address: strings.TrimPrefix(httpServer.URL, "http://"), client: httpServer.Client(), spec: contract.spec, router: contract.router}
+	s := bookingAcceptanceServer(t, func() time.Time { return now })
 	typ := s.createType(t, "Встреча", "Описание", 45)
 	payload := map[string]any{"meetingTypeId": typ.ID, "start": "2026-12-31T10:00:00+03:00", "name": " Guest ", "email": " guest@example.test "}
 	r := s.do(t, http.MethodPost, "/bookings", payload)
@@ -38,17 +25,7 @@ func TestBookingOccupiesCalendar(t *testing.T) {
 
 func TestConcurrentOverlappingBookings(t *testing.T) {
 	now, _ := time.Parse(time.RFC3339, "2026-12-31T05:00:00Z")
-	handler, err := server.NewHandlerWithClock(func() time.Time { return now })
-	if err != nil {
-		t.Fatal(err)
-	}
-	httpServer := httptest.NewServer(handler)
-	defer httpServer.Close()
-	contract, err := loadContract()
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := &apiServer{address: strings.TrimPrefix(httpServer.URL, "http://"), client: httpServer.Client(), spec: contract.spec, router: contract.router}
+	s := bookingAcceptanceServer(t, func() time.Time { return now })
 	a := s.createType(t, "Час", "Описание", 60)
 	b := s.createType(t, "Полчаса", "Описание", 30)
 	ready := make(chan struct{})
@@ -92,17 +69,7 @@ func TestConcurrentOverlappingBookings(t *testing.T) {
 
 func TestBookingValidationAndIntervals(t *testing.T) {
 	now, _ := time.Parse(time.RFC3339, "2026-12-31T05:00:00Z")
-	handler, err := server.NewHandlerWithClock(func() time.Time { return now })
-	if err != nil {
-		t.Fatal(err)
-	}
-	httpServer := httptest.NewServer(handler)
-	defer httpServer.Close()
-	contract, err := loadContract()
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := &apiServer{address: strings.TrimPrefix(httpServer.URL, "http://"), client: httpServer.Client(), spec: contract.spec, router: contract.router}
+	s := bookingAcceptanceServer(t, func() time.Time { return now })
 	long := s.createType(t, "Час", "Описание", 60)
 	short := s.createType(t, "Полчаса", "Описание", 30)
 	post := func(id int64, start, name, email string, status int) *http.Response {
@@ -138,4 +105,29 @@ func TestBookingValidationAndIntervals(t *testing.T) {
 	post(short.ID, "2026-12-31T11:00:00+03:00", "Имя", "a@b", 201)
 	now, _ = time.Parse(time.RFC3339, "2026-12-31T09:00:00Z")
 	post(short.ID, "2026-12-31T12:00:00+03:00", "Имя", "a@b", 422)
+}
+
+func TestBookingGuestNameLengthBoundaries(t *testing.T) {
+	now, err := time.Parse(time.RFC3339, "2026-12-31T05:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := bookingAcceptanceServer(t, func() time.Time { return now })
+	typ := s.createType(t, "Встреча", "Описание", 30)
+	for _, tc := range []struct {
+		name string
+		want int
+	}{
+		{strings.Repeat("я", 100), http.StatusCreated},
+		{strings.Repeat("я", 101), http.StatusUnprocessableEntity},
+	} {
+		r := s.do(t, http.MethodPost, "/bookings", map[string]any{
+			"meetingTypeId": typ.ID, "start": "2026-12-31T10:00:00+03:00",
+			"name": tc.name, "email": "guest@example.test",
+		})
+		if r.StatusCode != tc.want {
+			t.Fatalf("name length %d: got %s want %d", len([]rune(tc.name)), r.Status, tc.want)
+		}
+		_ = r.Body.Close()
+	}
 }

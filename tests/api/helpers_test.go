@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +25,23 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
+	"github.com/yurapriv/ai-for-developers-project-386/internal/server"
 )
+
+func bookingAcceptanceServer(t *testing.T, now func() time.Time) *apiServer {
+	t.Helper()
+	handler, err := server.NewHandlerWithClock(now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	httpServer := httptest.NewServer(handler)
+	t.Cleanup(httpServer.Close)
+	contract, err := loadContract()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &apiServer{address: strings.TrimPrefix(httpServer.URL, "http://"), client: httpServer.Client(), spec: contract.spec, router: contract.router}
+}
 
 func repositoryRoot() (string, error) {
 	return filepath.Abs(filepath.Join("..", ".."))

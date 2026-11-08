@@ -3,12 +3,8 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
-
-	"github.com/yurapriv/ai-for-developers-project-386/internal/server"
 )
 
 func TestAvailabilityRejectsUnknownMeetingType(t *testing.T) {
@@ -21,17 +17,7 @@ func TestAvailabilityRejectsUnknownMeetingType(t *testing.T) {
 
 func TestAvailabilityCalendarAndSlots(t *testing.T) {
 	now, _ := time.Parse(time.RFC3339, "2026-12-31T05:59:59Z")
-	handler, err := server.NewHandlerWithClock(func() time.Time { return now })
-	if err != nil {
-		t.Fatal(err)
-	}
-	httpServer := httptest.NewServer(handler)
-	defer httpServer.Close()
-	contract, err := loadContract()
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := &apiServer{address: strings.TrimPrefix(httpServer.URL, "http://"), client: httpServer.Client(), spec: contract.spec, router: contract.router}
+	s := bookingAcceptanceServer(t, func() time.Time { return now })
 	a := s.createType(t, "45", "test", 45)
 	b := s.createType(t, "30", "test", 30)
 	c := s.createType(t, "540", "test", 540)

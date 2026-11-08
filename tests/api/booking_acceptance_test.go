@@ -3,30 +3,11 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"reflect"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/yurapriv/ai-for-developers-project-386/internal/server"
 )
-
-func bookingAcceptanceServer(t *testing.T, now func() time.Time) *apiServer {
-	t.Helper()
-	handler, err := server.NewHandlerWithClock(now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	httpServer := httptest.NewServer(handler)
-	t.Cleanup(httpServer.Close)
-	contract, err := loadContract()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &apiServer{address: strings.TrimPrefix(httpServer.URL, "http://"), client: httpServer.Client(), spec: contract.spec, router: contract.router}
-}
 
 func bookingSlots(t *testing.T, s *apiServer, typeID int64) []time.Time {
 	t.Helper()

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -38,17 +37,7 @@ func TestUpcomingBookingsEmpty(t *testing.T) {
 
 func TestUpcomingBookingsIncludesAllTypesAndExcludesStarted(t *testing.T) {
 	now, _ := time.Parse(time.RFC3339, "2026-12-31T05:00:00Z")
-	handler, err := server.NewHandlerWithClock(func() time.Time { return now })
-	if err != nil {
-		t.Fatal(err)
-	}
-	httpServer := httptest.NewServer(handler)
-	defer httpServer.Close()
-	contract, err := loadContract()
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := &apiServer{address: strings.TrimPrefix(httpServer.URL, "http://"), client: httpServer.Client(), spec: contract.spec, router: contract.router}
+	s := bookingAcceptanceServer(t, func() time.Time { return now })
 	a := s.createType(t, "Час", "Описание", 60)
 	b := s.createType(t, "Сорок пять минут", "Описание", 45)
 	for _, booking := range []struct {
