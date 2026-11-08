@@ -18,3 +18,130 @@ op health(): {
   @statusCode statusCode: 200;
   @body body: Health;
 };
+
+// Тип встречи: предложение встречи с названием, описанием и длительностью.
+// Id назначает приложение; клиент не передаёт его. Порядок каталога — порядок создания.
+model MeetingType {
+  id: int64;
+  name: string;
+  description: string;
+  durationMinutes: int64;
+}
+
+// Данные для создания типа встречи. Название и описание проверяются после
+// удаления пробелов по краям: 1–100 и 1–2000 символов соответственно.
+// Длительность — целое число минут от 1 до 540 включительно (не обязана быть кратна 30).
+model MeetingTypeInput {
+  name: string;
+  description: string;
+  durationMinutes: int64;
+}
+
+// Единый формат ошибок приложения. Сообщение понятно пользователю,
+// fields перечисляет ошибки отдельных полей формы (пусто, если ошибки не привязаны к полям).
+model Problem {
+  message: string;
+  fields: FieldProblem[];
+}
+
+model FieldProblem {
+  field: string;
+  message: string;
+}
+
+@post
+@route("/meeting-types")
+@operationId("createMeetingType")
+op createMeetingType(@body body: MeetingTypeInput): {
+  @statusCode statusCode: 201;
+  @body body: MeetingType;
+} | {
+  @statusCode statusCode: 422;
+  @body body: Problem;
+};
+
+@get
+@route("/meeting-types")
+@operationId("listMeetingTypes")
+op listMeetingTypes(): {
+  @statusCode statusCode: 200;
+  @body body: MeetingType[];
+};
+
+model BookingWindow {
+  timeZone: string;
+  firstDay: string;
+  lastDay: string;
+}
+
+model Slot {
+  start: utcDateTime;
+  end: utcDateTime;
+}
+
+model Availability {
+  window: BookingWindow;
+  slots: Slot[];
+}
+
+@get
+@route("/booking-window")
+@operationId("getBookingWindow")
+op getBookingWindow(): {
+  @statusCode statusCode: 200;
+  @body body: BookingWindow;
+};
+
+@get
+@route("/availability")
+@operationId("getAvailability")
+op getAvailability(@query meetingTypeId: int64, @query day: string): {
+  @statusCode statusCode: 200;
+  @body body: Availability;
+} | {
+  @statusCode statusCode: 404;
+  @body body: Problem;
+} | {
+  @statusCode statusCode: 422;
+  @body body: Problem;
+};
+
+model BookingInput {
+  meetingTypeId: int64;
+  start: offsetDateTime;
+  name: string;
+  email: string;
+}
+
+model Booking {
+  meetingType: MeetingType;
+  start: offsetDateTime;
+  end: offsetDateTime;
+  name: string;
+  email: string;
+}
+
+@get
+@route("/bookings")
+@operationId("listUpcomingBookings")
+op listUpcomingBookings(): {
+  @statusCode statusCode: 200;
+  @body body: Booking[];
+};
+
+@post
+@route("/bookings")
+@operationId("createBooking")
+op createBooking(@body body: BookingInput): {
+  @statusCode statusCode: 201;
+  @body body: Booking;
+} | {
+  @statusCode statusCode: 404;
+  @body body: Problem;
+} | {
+  @statusCode statusCode: 409;
+  @body body: Problem;
+} | {
+  @statusCode statusCode: 422;
+  @body body: Problem;
+};

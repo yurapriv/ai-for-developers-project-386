@@ -4,6 +4,100 @@ info:
   version: 0.0.0
 tags: []
 paths:
+  /availability:
+    get:
+      operationId: getAvailability
+      parameters:
+        - name: meetingTypeId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          explode: false
+        - name: day
+          in: query
+          required: true
+          schema:
+            type: string
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /booking-window:
+    get:
+      operationId: getBookingWindow
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingWindow'
+  /bookings:
+    get:
+      operationId: listUpcomingBookings
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+    post:
+      operationId: createBooking
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingInput'
   /health:
     get:
       operationId: getHealth
@@ -15,8 +109,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
+  /meeting-types:
+    post:
+      operationId: createMeetingType
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingType'
+        '422':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeetingTypeInput'
+    get:
+      operationId: listMeetingTypes
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeetingType'
 components:
   schemas:
+    Availability:
+      type: object
+      required:
+        - window
+        - slots
+      properties:
+        window:
+          $ref: '#/components/schemas/BookingWindow'
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/Slot'
+    Booking:
+      type: object
+      required:
+        - meetingType
+        - start
+        - end
+        - name
+        - email
+      properties:
+        meetingType:
+          $ref: '#/components/schemas/MeetingType'
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        name:
+          type: string
+        email:
+          type: string
+    BookingInput:
+      type: object
+      required:
+        - meetingTypeId
+        - start
+        - name
+        - email
+      properties:
+        meetingTypeId:
+          type: integer
+          format: int64
+        start:
+          type: string
+          format: date-time
+        name:
+          type: string
+        email:
+          type: string
+    BookingWindow:
+      type: object
+      required:
+        - timeZone
+        - firstDay
+        - lastDay
+      properties:
+        timeZone:
+          type: string
+        firstDay:
+          type: string
+        lastDay:
+          type: string
+    FieldProblem:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+        message:
+          type: string
     Health:
       type: object
       required:
@@ -26,3 +229,59 @@ components:
           type: string
           enum:
             - ok
+    MeetingType:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - durationMinutes
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        description:
+          type: string
+        durationMinutes:
+          type: integer
+          format: int64
+    MeetingTypeInput:
+      type: object
+      required:
+        - name
+        - description
+        - durationMinutes
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        durationMinutes:
+          type: integer
+          format: int64
+    Problem:
+      type: object
+      required:
+        - message
+        - fields
+      properties:
+        message:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldProblem'
+    Slot:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time

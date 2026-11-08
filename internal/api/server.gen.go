@@ -11,13 +11,16 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/oapi-codegen/runtime"
 )
 
 // Defines values for HealthStatus.
@@ -35,6 +38,42 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Availability defines model for Availability.
+type Availability struct {
+	Slots  []Slot        `json:"slots"`
+	Window BookingWindow `json:"window"`
+}
+
+// Booking defines model for Booking.
+type Booking struct {
+	Email       string      `json:"email"`
+	End         time.Time   `json:"end"`
+	MeetingType MeetingType `json:"meetingType"`
+	Name        string      `json:"name"`
+	Start       time.Time   `json:"start"`
+}
+
+// BookingInput defines model for BookingInput.
+type BookingInput struct {
+	Email         string    `json:"email"`
+	MeetingTypeId int64     `json:"meetingTypeId"`
+	Name          string    `json:"name"`
+	Start         time.Time `json:"start"`
+}
+
+// BookingWindow defines model for BookingWindow.
+type BookingWindow struct {
+	FirstDay string `json:"firstDay"`
+	LastDay  string `json:"lastDay"`
+	TimeZone string `json:"timeZone"`
+}
+
+// FieldProblem defines model for FieldProblem.
+type FieldProblem struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
 // Health defines model for Health.
 type Health struct {
 	Status HealthStatus `json:"status"`
@@ -43,11 +82,68 @@ type Health struct {
 // HealthStatus defines model for Health.Status.
 type HealthStatus string
 
+// MeetingType defines model for MeetingType.
+type MeetingType struct {
+	Description     string `json:"description"`
+	DurationMinutes int64  `json:"durationMinutes"`
+	Id              int64  `json:"id"`
+	Name            string `json:"name"`
+}
+
+// MeetingTypeInput defines model for MeetingTypeInput.
+type MeetingTypeInput struct {
+	Description     string `json:"description"`
+	DurationMinutes int64  `json:"durationMinutes"`
+	Name            string `json:"name"`
+}
+
+// Problem defines model for Problem.
+type Problem struct {
+	Fields  []FieldProblem `json:"fields"`
+	Message string         `json:"message"`
+}
+
+// Slot defines model for Slot.
+type Slot struct {
+	End   time.Time `json:"end"`
+	Start time.Time `json:"start"`
+}
+
+// GetAvailabilityParams defines parameters for GetAvailability.
+type GetAvailabilityParams struct {
+	MeetingTypeId int64  `form:"meetingTypeId" json:"meetingTypeId"`
+	Day           string `form:"day" json:"day"`
+}
+
+// CreateBookingJSONRequestBody defines body for CreateBooking for application/json ContentType.
+type CreateBookingJSONRequestBody = BookingInput
+
+// CreateMeetingTypeJSONRequestBody defines body for CreateMeetingType for application/json ContentType.
+type CreateMeetingTypeJSONRequestBody = MeetingTypeInput
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
+	// (GET /availability)
+	GetAvailability(w http.ResponseWriter, r *http.Request, params GetAvailabilityParams)
+
+	// (GET /booking-window)
+	GetBookingWindow(w http.ResponseWriter, r *http.Request)
+
+	// (GET /bookings)
+	ListUpcomingBookings(w http.ResponseWriter, r *http.Request)
+
+	// (POST /bookings)
+	CreateBooking(w http.ResponseWriter, r *http.Request)
+
 	// (GET /health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+
+	// (GET /meeting-types)
+	ListMeetingTypes(w http.ResponseWriter, r *http.Request)
+
+	// (POST /meeting-types)
+	CreateMeetingType(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -59,11 +155,127 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// GetAvailability operation middleware
+func (siw *ServerInterfaceWrapper) GetAvailability(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAvailabilityParams
+
+	// ------------- Required query parameter "meetingTypeId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", false, true, "meetingTypeId", r.URL.Query(), &params.MeetingTypeId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "meetingTypeId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "meetingTypeId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "day" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", false, true, "day", r.URL.Query(), &params.Day, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "day"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "day", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAvailability(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBookingWindow operation middleware
+func (siw *ServerInterfaceWrapper) GetBookingWindow(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBookingWindow(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListUpcomingBookings operation middleware
+func (siw *ServerInterfaceWrapper) ListUpcomingBookings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListUpcomingBookings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateBooking operation middleware
+func (siw *ServerInterfaceWrapper) CreateBooking(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateBooking(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHealth operation middleware
 func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMeetingTypes operation middleware
+func (siw *ServerInterfaceWrapper) ListMeetingTypes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMeetingTypes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateMeetingType operation middleware
+func (siw *ServerInterfaceWrapper) CreateMeetingType(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateMeetingType(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -193,9 +405,171 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/availability", wrapper.GetAvailability)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/booking-window", wrapper.GetBookingWindow)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bookings", wrapper.ListUpcomingBookings)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bookings", wrapper.CreateBooking)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health", wrapper.GetHealth)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/meeting-types", wrapper.ListMeetingTypes)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/meeting-types", wrapper.CreateMeetingType)
 
 	return m
+}
+
+type GetAvailabilityRequestObject struct {
+	Params GetAvailabilityParams
+}
+
+type GetAvailabilityResponseObject interface {
+	VisitGetAvailabilityResponse(w http.ResponseWriter) error
+}
+
+type GetAvailability200JSONResponse Availability
+
+func (response GetAvailability200JSONResponse) VisitGetAvailabilityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAvailability404JSONResponse Problem
+
+func (response GetAvailability404JSONResponse) VisitGetAvailabilityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAvailability422JSONResponse Problem
+
+func (response GetAvailability422JSONResponse) VisitGetAvailabilityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBookingWindowRequestObject struct {
+}
+
+type GetBookingWindowResponseObject interface {
+	VisitGetBookingWindowResponse(w http.ResponseWriter) error
+}
+
+type GetBookingWindow200JSONResponse BookingWindow
+
+func (response GetBookingWindow200JSONResponse) VisitGetBookingWindowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListUpcomingBookingsRequestObject struct {
+}
+
+type ListUpcomingBookingsResponseObject interface {
+	VisitListUpcomingBookingsResponse(w http.ResponseWriter) error
+}
+
+type ListUpcomingBookings200JSONResponse []Booking
+
+func (response ListUpcomingBookings200JSONResponse) VisitListUpcomingBookingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBookingRequestObject struct {
+	Body *CreateBookingJSONRequestBody
+}
+
+type CreateBookingResponseObject interface {
+	VisitCreateBookingResponse(w http.ResponseWriter) error
+}
+
+type CreateBooking201JSONResponse Booking
+
+func (response CreateBooking201JSONResponse) VisitCreateBookingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBooking404JSONResponse Problem
+
+func (response CreateBooking404JSONResponse) VisitCreateBookingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBooking409JSONResponse Problem
+
+func (response CreateBooking409JSONResponse) VisitCreateBookingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBooking422JSONResponse Problem
+
+func (response CreateBooking422JSONResponse) VisitCreateBookingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetHealthRequestObject struct {
@@ -219,11 +593,86 @@ func (response GetHealth200JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	return err
 }
 
+type ListMeetingTypesRequestObject struct {
+}
+
+type ListMeetingTypesResponseObject interface {
+	VisitListMeetingTypesResponse(w http.ResponseWriter) error
+}
+
+type ListMeetingTypes200JSONResponse []MeetingType
+
+func (response ListMeetingTypes200JSONResponse) VisitListMeetingTypesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMeetingTypeRequestObject struct {
+	Body *CreateMeetingTypeJSONRequestBody
+}
+
+type CreateMeetingTypeResponseObject interface {
+	VisitCreateMeetingTypeResponse(w http.ResponseWriter) error
+}
+
+type CreateMeetingType201JSONResponse MeetingType
+
+func (response CreateMeetingType201JSONResponse) VisitCreateMeetingTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMeetingType422JSONResponse Problem
+
+func (response CreateMeetingType422JSONResponse) VisitCreateMeetingTypeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
+	// (GET /availability)
+	GetAvailability(ctx context.Context, request GetAvailabilityRequestObject) (GetAvailabilityResponseObject, error)
+
+	// (GET /booking-window)
+	GetBookingWindow(ctx context.Context, request GetBookingWindowRequestObject) (GetBookingWindowResponseObject, error)
+
+	// (GET /bookings)
+	ListUpcomingBookings(ctx context.Context, request ListUpcomingBookingsRequestObject) (ListUpcomingBookingsResponseObject, error)
+
+	// (POST /bookings)
+	CreateBooking(ctx context.Context, request CreateBookingRequestObject) (CreateBookingResponseObject, error)
+
 	// (GET /health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+
+	// (GET /meeting-types)
+	ListMeetingTypes(ctx context.Context, request ListMeetingTypesRequestObject) (ListMeetingTypesResponseObject, error)
+
+	// (POST /meeting-types)
+	CreateMeetingType(ctx context.Context, request CreateMeetingTypeRequestObject) (CreateMeetingTypeResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -265,6 +714,111 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// GetAvailability operation middleware
+func (sh *strictHandler) GetAvailability(w http.ResponseWriter, r *http.Request, params GetAvailabilityParams) {
+	var request GetAvailabilityRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAvailability(ctx, request.(GetAvailabilityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAvailability")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAvailabilityResponseObject); ok {
+		if err := validResponse.VisitGetAvailabilityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBookingWindow operation middleware
+func (sh *strictHandler) GetBookingWindow(w http.ResponseWriter, r *http.Request) {
+	var request GetBookingWindowRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBookingWindow(ctx, request.(GetBookingWindowRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBookingWindow")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBookingWindowResponseObject); ok {
+		if err := validResponse.VisitGetBookingWindowResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListUpcomingBookings operation middleware
+func (sh *strictHandler) ListUpcomingBookings(w http.ResponseWriter, r *http.Request) {
+	var request ListUpcomingBookingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListUpcomingBookings(ctx, request.(ListUpcomingBookingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListUpcomingBookings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListUpcomingBookingsResponseObject); ok {
+		if err := validResponse.VisitListUpcomingBookingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateBooking operation middleware
+func (sh *strictHandler) CreateBooking(w http.ResponseWriter, r *http.Request) {
+	var request CreateBookingRequestObject
+
+	var body CreateBookingJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateBooking(ctx, request.(CreateBookingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateBooking")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateBookingResponseObject); ok {
+		if err := validResponse.VisitCreateBookingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetHealth operation middleware
 func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	var request GetHealthRequestObject
@@ -289,16 +843,81 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListMeetingTypes operation middleware
+func (sh *strictHandler) ListMeetingTypes(w http.ResponseWriter, r *http.Request) {
+	var request ListMeetingTypesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMeetingTypes(ctx, request.(ListMeetingTypesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMeetingTypes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMeetingTypesResponseObject); ok {
+		if err := validResponse.VisitListMeetingTypesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateMeetingType operation middleware
+func (sh *strictHandler) CreateMeetingType(w http.ResponseWriter, r *http.Request) {
+	var request CreateMeetingTypeRequestObject
+
+	var body CreateMeetingTypeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateMeetingType(ctx, request.(CreateMeetingTypeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateMeetingType")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateMeetingTypeResponseObject); ok {
+		if err := validResponse.VisitCreateMeetingTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"RJCxTvQwEIRfJZr/L6NLBJ07oIDrKOgQhXH2zr7L7Rp7g4ROfndk50SqHWVn4v3mCieXKEysGeaK7Dxd",
-	"bJMvZGf1VcUkkZIGWi1qdWmKeLnAvEPO+OihP5FgkDUFPqKUHom+lpBoqp5bavPJ54mcolRj4IPUH2rQ",
-	"ue6e7Ew82dQ9ipwDH7uH1z16fFPKQRgG427cjSg9JBLbGGBw3z71iFZ9u27wfwBH0joqhdUgvJ9g8Ex6",
-	"Q6yX5iicV8C7cazDCStxC9oY5+BadDhl4a2pqv4nOsDg37BVOazbPNxeaJQTZZdC1BXhzVNXC6Ksnbe5",
-	"y4tzRBNNu+oupfwOAA==",
+	"zFffb9s2EP5XCG6PSuxlwYDprcmwLcACFFiHAiv6cBbPNluKVMlTMiPQ/z6QkqzfrtzETp8sS6e777sf",
+	"H09PPDFpZjRqcjx+4i7ZYgrh8s0DSAUrqSTt/P/MmgwtSSwNlSnfkIRpuPjR4prH/IdF43FRuVv8rQzx",
+	"IuK0y5DHHKyFnf//KLUwj197+8aYz1Jv3pfGRRFxi19yaVHw+EPtI6ogfdxHMatPmISwlYMhC0xBKn9R",
+	"veLIersi4qiFv782NgXiMRdAeEEyRR4NjVNEknrzLtw/zOW+ZVpEXEOKo/EdgaW5CHoZacOpPZWMqoBR",
+	"RfxAru50ltMxCWsFveumTmr65boBLTXhBu052N+JFv+5zN/ve7JLfS2to99gNwpYwfQzj/pfo8eY9qDv",
+	"LaMmWuN7DPPvEpV4a81KYToGGZWYqJZzsJkBqXTRvDAG4k8ERdtheEdAebhCnafem/nccjARsXprLNB9",
+	"d8660QS6xMqMpNGjlEVuwT+8lzondJ3umm5R+cxe7pGTrRlsAx7C+wr/ifk8TRLmcftmWof7d/4p0xmG",
+	"kdNmdtPXhlGNYAx1ONMGkI86N54jc21ZH8Lz1lKvTeAqSflnt6BQC7CsEjr25u0dj/gDWhfahS8vl5dL",
+	"j8tkqCGTPOY/h1sRz4C2gd8CemvBBgMDn4NQaC/+/A+kzvrgHVhIkdA6Hn944vhfpoxAHq9BOfRYecy/",
+	"5Gh39XzEAyFv2JPNMap2lVktXETzQgrYHQzUL8lHb+wyo11Z/avl0v8kRhPqkBfIMiWTkJnFJ1dOZePv",
+	"UDd3EhgK2hlu/m6LzCNFR2wLjrk8SRAFiktfwuvl9Ysh2Y/UOAiH9gEtS0BrQ2wttWDUYEPBLDqT2wRL",
+	"YFdX5wB2qyRqYmit8fX3BotV2fcXzdY51bzdVeCERe6vtkdVucPKTfL5Szr6J0tMKvXmpjZ+JqdZelwF",
+	"G0rxsTQjnhk3wuzWIhDWYcrBRUc3RuxeukLleVsURV8eikEmf3rp2EcljIEWDJjGx/3cBYMVomZJSJhg",
+	"4Bj4x7mi71wtlr+eC1idzcTotZIJOfYoaRvAJbm1Xk0cASEza0Z7Iq+tadv97j2lZdV2fkIRqyJ8k3pV",
+	"h/yFF4jDEtZafs8jX71P9VNK2H3ni/0UMjb4dDizlHWSeXI5e6V5LIr/BwA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

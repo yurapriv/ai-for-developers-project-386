@@ -4,9 +4,160 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type Availability = {
+    window: BookingWindow;
+    slots: Array<Slot>;
+};
+
+export type Booking = {
+    meetingType: MeetingType;
+    start: string;
+    end: string;
+    name: string;
+    email: string;
+};
+
+export type BookingInput = {
+    meetingTypeId: number;
+    start: string;
+    name: string;
+    email: string;
+};
+
+export type BookingWindow = {
+    timeZone: string;
+    firstDay: string;
+    lastDay: string;
+};
+
+export type FieldProblem = {
+    field: string;
+    message: string;
+};
+
 export type Health = {
     status: 'ok';
 };
+
+export type MeetingType = {
+    id: number;
+    name: string;
+    description: string;
+    durationMinutes: number;
+};
+
+export type MeetingTypeInput = {
+    name: string;
+    description: string;
+    durationMinutes: number;
+};
+
+export type Problem = {
+    message: string;
+    fields: Array<FieldProblem>;
+};
+
+export type Slot = {
+    start: string;
+    end: string;
+};
+
+export type GetAvailabilityData = {
+    body?: never;
+    path?: never;
+    query: {
+        meetingTypeId: number;
+        day: string;
+    };
+    url: '/availability';
+};
+
+export type GetAvailabilityErrors = {
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: Problem;
+    /**
+     * Client error
+     */
+    422: Problem;
+};
+
+export type GetAvailabilityError = GetAvailabilityErrors[keyof GetAvailabilityErrors];
+
+export type GetAvailabilityResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Availability;
+};
+
+export type GetAvailabilityResponse = GetAvailabilityResponses[keyof GetAvailabilityResponses];
+
+export type GetBookingWindowData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/booking-window';
+};
+
+export type GetBookingWindowResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: BookingWindow;
+};
+
+export type GetBookingWindowResponse = GetBookingWindowResponses[keyof GetBookingWindowResponses];
+
+export type ListUpcomingBookingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/bookings';
+};
+
+export type ListUpcomingBookingsResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<Booking>;
+};
+
+export type ListUpcomingBookingsResponse = ListUpcomingBookingsResponses[keyof ListUpcomingBookingsResponses];
+
+export type CreateBookingData = {
+    body: BookingInput;
+    path?: never;
+    query?: never;
+    url: '/bookings';
+};
+
+export type CreateBookingErrors = {
+    /**
+     * The server cannot find the requested resource.
+     */
+    404: Problem;
+    /**
+     * The request conflicts with the current state of the server.
+     */
+    409: Problem;
+    /**
+     * Client error
+     */
+    422: Problem;
+};
+
+export type CreateBookingError = CreateBookingErrors[keyof CreateBookingErrors];
+
+export type CreateBookingResponses = {
+    /**
+     * The request has succeeded and a new resource has been created as a result.
+     */
+    201: Booking;
+};
+
+export type CreateBookingResponse = CreateBookingResponses[keyof CreateBookingResponses];
 
 export type GetHealthData = {
     body?: never;
@@ -23,3 +174,44 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type ListMeetingTypesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/meeting-types';
+};
+
+export type ListMeetingTypesResponses = {
+    /**
+     * The request has succeeded.
+     */
+    200: Array<MeetingType>;
+};
+
+export type ListMeetingTypesResponse = ListMeetingTypesResponses[keyof ListMeetingTypesResponses];
+
+export type CreateMeetingTypeData = {
+    body: MeetingTypeInput;
+    path?: never;
+    query?: never;
+    url: '/meeting-types';
+};
+
+export type CreateMeetingTypeErrors = {
+    /**
+     * Client error
+     */
+    422: Problem;
+};
+
+export type CreateMeetingTypeError = CreateMeetingTypeErrors[keyof CreateMeetingTypeErrors];
+
+export type CreateMeetingTypeResponses = {
+    /**
+     * The request has succeeded and a new resource has been created as a result.
+     */
+    201: MeetingType;
+};
+
+export type CreateMeetingTypeResponse = CreateMeetingTypeResponses[keyof CreateMeetingTypeResponses];

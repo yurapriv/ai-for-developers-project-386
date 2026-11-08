@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/yurapriv/ai-for-developers-project-386/internal/server"
 )
@@ -24,9 +25,36 @@ func main() {
 }
 
 func run() error {
-	handler, err := server.NewHandler()
+	clock := time.Now
+	if os.Getenv("E2E_MODE") == "1" && os.Getenv("E2E_FIXED_NOW") != "" {
+		fixed, err := time.Parse(time.RFC3339Nano, os.Getenv("E2E_FIXED_NOW"))
+		if err != nil {
+			return fmt.Errorf("invalid E2E_FIXED_NOW: %w", err)
+		}
+		clock = func() time.Time { return fixed }
+		if path := os.Getenv("E2E_CLOCK_FILE"); path != "" {
+			clock = func() time.Time {
+				value, err := os.ReadFile(path)
+				if errors.Is(err, os.ErrNotExist) {
+					return fixed
+				}
+				if err != nil {
+					panic(fmt.Errorf("read E2E clock: %w", err))
+				}
+				current, err := time.Parse(time.RFC3339Nano, string(value))
+				if err != nil {
+					panic(fmt.Errorf("invalid E2E clock: %w", err))
+				}
+				return current
+			}
+		}
+	}
+	handler, err := server.NewHandlerWithClock(clock)
 	if err != nil {
 		return fmt.Errorf("initialize API: %w", err)
+	}
+	if dir := os.Getenv("FRONTEND_DIR"); dir != "" {
+		handler = server.WithFrontend(handler, os.DirFS(dir))
 	}
 	address := os.Getenv("LISTEN_ADDR")
 	if address == "" {
