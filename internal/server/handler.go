@@ -39,13 +39,39 @@ type bookingStore struct {
 	items []api.Booking
 }
 
-func (s *bookingStore) occupied(start, end time.Time) bool {
-	for _, b := range s.items {
+func occupied(items []api.Booking, start, end time.Time) bool {
+	for _, b := range items {
 		if start.Before(b.End) && b.Start.Before(end) {
 			return true
 		}
 	}
 	return false
+}
+
+func (s *bookingStore) snapshot() []api.Booking {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]api.Booking{}, s.items...)
+}
+
+// create validates the time and checks conflicts under the same lock as the append.
+func (s *bookingStore) create(booking api.Booking, valid func() bool) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !valid() {
+		return http.StatusUnprocessableEntity
+	}
+	if occupied(s.items, booking.Start, booking.End) {
+		return http.StatusConflict
+	}
+	s.items = append(s.items, booking)
+	return http.StatusCreated
+}
+
+func (s *bookingStore) reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.items = nil
 }
 
 var _ api.StrictServerInterface = operations{}
@@ -93,13 +119,12 @@ func (o operations) GetAvailability(_ context.Context, req api.GetAvailabilityRe
 		return api.GetAvailability422JSONResponse(problem("Выберите день в окне записи", nil)), nil
 	}
 	slots := []api.Slot{}
-	o.bookings.mu.Lock()
-	defer o.bookings.mu.Unlock()
+	bookings := o.bookings.snapshot()
 	start := day.Add(9 * time.Hour)
 	endOfDay := day.Add(18 * time.Hour)
 	for ; !start.Add(time.Duration(duration) * time.Minute).After(endOfDay); start = start.Add(30 * time.Minute) {
 		end := start.Add(time.Duration(duration) * time.Minute)
-		if o.validSlotTime(start, end, now, window) && !o.bookings.occupied(start, end) {
+		if o.validSlotTime(start, end, now, window) && !occupied(bookings, start, end) {
 			slots = append(slots, api.Slot{Start: start, End: end})
 		}
 	}
@@ -130,29 +155,26 @@ func (o operations) CreateBooking(_ context.Context, req api.CreateBookingReques
 	if len(fields) > 0 {
 		return api.CreateBooking422JSONResponse(problem(fieldValidationMessage, fields)), nil
 	}
-	o.bookings.mu.Lock()
-	defer o.bookings.mu.Unlock()
-	now := o.now()
 	start := b.Start.In(o.location)
 	end := start.Add(time.Duration(meetingType.DurationMinutes) * time.Minute)
-	window := o.window(now)
-	if !o.validSlotTime(start, end, now, window) {
+	booking := api.Booking{MeetingType: meetingType, Start: start, End: end, Name: name, Email: email}
+	status := o.bookings.create(booking, func() bool {
+		now := o.now()
+		return o.validSlotTime(start, end, now, o.window(now))
+	})
+	if status == http.StatusUnprocessableEntity {
 		return api.CreateBooking422JSONResponse(problem("Выберите допустимое время в окне записи", nil)), nil
 	}
-	if o.bookings.occupied(start, end) {
+	if status == http.StatusConflict {
 		return api.CreateBooking409JSONResponse(problem("Это время уже занято. Выберите другой свободный слот", nil)), nil
 	}
-	booking := api.Booking{MeetingType: meetingType, Start: start, End: end, Name: name, Email: email}
-	o.bookings.items = append(o.bookings.items, booking)
 	return api.CreateBooking201JSONResponse(booking), nil
 }
 
 func (o operations) ListUpcomingBookings(_ context.Context, _ api.ListUpcomingBookingsRequestObject) (api.ListUpcomingBookingsResponseObject, error) {
-	o.bookings.mu.Lock()
-	defer o.bookings.mu.Unlock()
 	now := o.now()
 	items := make(api.ListUpcomingBookings200JSONResponse, 0)
-	for _, booking := range o.bookings.items {
+	for _, booking := range o.bookings.snapshot() {
 		if booking.Start.After(now) {
 			items = append(items, booking)
 		}
@@ -241,9 +263,7 @@ func NewHandlerWithClock(now func() time.Time) (http.Handler, error) {
 	if isTestModeEnabled() {
 		// Test-only hook outside the contract: resets in-memory state for isolated browser scenarios.
 		mux.HandleFunc(testOnlyResetRoute, func(w http.ResponseWriter, _ *http.Request) {
-			ops.bookings.mu.Lock()
-			defer ops.bookings.mu.Unlock()
-			ops.bookings.items = nil
+			ops.bookings.reset()
 			ops.meetingTypes.Reset()
 			w.WriteHeader(http.StatusNoContent)
 		})
