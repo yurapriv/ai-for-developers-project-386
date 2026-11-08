@@ -306,3 +306,40 @@ test('потерянное после создания подтверждени�
   expect(retry.status()).toBe(409);
   expect(creates).toBe(1);
 });
+
+test('потеря тела успешного ответа оставляет результат записи неопределённым', async ({
+  page,
+  request,
+}) => {
+  await request.post('http://127.0.0.1:8080/__e2e/reset');
+  await request.post('http://127.0.0.1:8080/meeting-types', {
+    data: { name: 'Встреча', description: 'Описание', durationMinutes: 30 },
+  });
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      const input = args[0];
+      if (
+        input instanceof Request &&
+        input.method === 'POST' &&
+        new URL(input.url).pathname.endsWith('/bookings') &&
+        response.status === 201
+      ) {
+        response.text = () => Promise.reject(new Error('Соединение прервано при чтении'));
+      }
+      return response;
+    };
+  });
+  await page.goto('/booking');
+  await page.getByRole('button', { name: 'Выбрать', exact: true }).click();
+  await page.getByLabel('День').selectOption('2027-01-01');
+  await page.getByRole('button', { name: '10:00–10:30' }).click();
+  await page.getByLabel('Имя').fill('Гость');
+  await page.getByLabel('Email').fill('guest@example.test');
+  await page.getByRole('button', { name: 'Записаться' }).click();
+  await expect(page.getByText('Не удалось получить подтверждение записи')).toBeVisible();
+  await expect(page.getByLabel('Имя')).toHaveValue('Гость');
+  const response = await request.get('http://127.0.0.1:8080/bookings');
+  expect(await response.json()).toHaveLength(1);
+});

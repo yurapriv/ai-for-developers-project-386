@@ -36,6 +36,46 @@ test('владелец создаёт тип встречи, и гость ви�
   await expect(guestItem.getByText('30 минут', { exact: true })).toBeVisible();
 });
 
+test('поздний первоначальный ответ не скрывает созданный тип', async ({ page }) => {
+  let release: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let initialRequests = 0;
+  let delivered = 0;
+  let created = false;
+  await page.route('**/meeting-types', async (route) => {
+    if (route.request().method() === 'POST') {
+      const response = await route.fetch();
+      created = true;
+      await route.fulfill({ response });
+    } else if (!created) {
+      const response = await route.fetch();
+      initialRequests++;
+      await held;
+      await route.fulfill({ response });
+      delivered++;
+    } else {
+      await route.continue();
+    }
+  });
+  try {
+    await page.goto('/admin');
+    await expect.poll(() => initialRequests).toBeGreaterThan(0);
+    await page.getByLabel('Название', { exact: true }).fill('Новый тип');
+    await page.getByLabel('Описание', { exact: true }).fill('Описание');
+    await page.getByLabel('Длительность', { exact: true }).fill('30');
+    await page.getByRole('button', { name: 'Создать тип встречи' }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: 'Новый тип' })).toBeVisible();
+    release?.();
+    await expect.poll(() => delivered).toBe(initialRequests);
+    await expect(page.getByRole('listitem').filter({ hasText: 'Новый тип' })).toBeVisible();
+    await expect(page.getByText('Пока нет ни одного типа встречи')).toHaveCount(0);
+  } finally {
+    release?.();
+  }
+});
+
 test('гость видит сообщение пустого каталога', async ({ page }) => {
   await page.goto('/booking');
   await expectSingleSection(page, 'Типы встреч');

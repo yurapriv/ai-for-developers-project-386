@@ -1,15 +1,11 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router';
-import { durationText, loadMeetingTypes } from '../api/meetingTypes';
+import { durationText } from '../api/meetingTypes';
 import type { MeetingType } from '../api/meetingTypes';
 import { createBooking, getAvailability, getBookingWindow } from '../api/generated';
 import type { Booking, BookingWindow, Slot } from '../api/generated';
 import { MeetingTypeCatalog } from './MeetingTypeCatalog';
-
-type CatalogState =
-  | { kind: 'loading' }
-  | { kind: 'error' }
-  | { kind: 'ready'; meetingTypes: MeetingType[] };
+import { useMeetingTypes } from './useMeetingTypes';
 
 // A request can outlive the picker when the guest navigates away and back.
 let bookingPending = false;
@@ -24,33 +20,8 @@ function subscribePending(listener: () => void) {
 }
 
 export function BookingPage() {
-  const [catalogState, setCatalogState] = useState<CatalogState>({ kind: 'loading' });
+  const { catalogState, loadCatalog } = useMeetingTypes();
   const [selected, setSelected] = useState<MeetingType | null>(null);
-
-  const loadCatalog = useCallback(async () => {
-    const result = await loadMeetingTypes();
-    if (result.ok) {
-      setCatalogState({ kind: 'ready', meetingTypes: result.meetingTypes });
-    } else {
-      setCatalogState({ kind: 'error' });
-    }
-  }, []);
-
-  useEffect(() => {
-    let subscribed = true;
-    void loadMeetingTypes().then((result) => {
-      if (subscribed) {
-        if (result.ok) {
-          setCatalogState({ kind: 'ready', meetingTypes: result.meetingTypes });
-        } else {
-          setCatalogState({ kind: 'error' });
-        }
-      }
-    });
-    return () => {
-      subscribed = false;
-    };
-  }, []);
 
   return (
     <main>
@@ -67,7 +38,6 @@ export function BookingPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setCatalogState({ kind: 'loading' });
                   void loadCatalog();
                 }}
               >
@@ -179,7 +149,7 @@ function SlotPicker({ meetingType, onBack }: { meetingType: MeetingType; onBack:
       });
       if (result.data) {
         setBooking(result.data);
-      } else if (result.response) {
+      } else if (result.response && !result.response.ok) {
         setMessage(result.error?.message ?? 'Не удалось создать запись');
         if (result.error?.fields)
           setErrors(

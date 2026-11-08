@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router';
-import { createMeetingType, loadMeetingTypes } from '../api/meetingTypes';
-import type { FieldProblem, MeetingType } from '../api/meetingTypes';
+import { createMeetingType } from '../api/meetingTypes';
+import type { FieldProblem } from '../api/meetingTypes';
 import { MeetingTypeCatalog } from './MeetingTypeCatalog';
 import { UpcomingBookings } from './UpcomingBookings';
+import { useMeetingTypes } from './useMeetingTypes';
 
 type FormFields = {
   name: string;
@@ -13,11 +14,6 @@ type FormFields = {
 };
 
 type FieldErrors = Partial<Record<'name' | 'description' | 'durationMinutes', string>>;
-
-type CatalogState =
-  | { kind: 'loading' }
-  | { kind: 'error' }
-  | { kind: 'ready'; meetingTypes: MeetingType[] };
 
 const emptyForm: FormFields = { name: '', description: '', durationMinutes: '' };
 
@@ -62,33 +58,8 @@ export function AdminPage() {
   const [formError, setFormError] = useState('');
   const [creating, setCreating] = useState(false);
   const [createdNotice, setCreatedNotice] = useState(false);
-  const [catalogState, setCatalogState] = useState<CatalogState>({ kind: 'loading' });
+  const { catalogState, loadCatalog } = useMeetingTypes();
   const inFlight = useRef(false);
-
-  const loadCatalog = useCallback(async () => {
-    const result = await loadMeetingTypes();
-    if (result.ok) {
-      setCatalogState({ kind: 'ready', meetingTypes: result.meetingTypes });
-    } else {
-      setCatalogState({ kind: 'error' });
-    }
-  }, []);
-
-  useEffect(() => {
-    let subscribed = true;
-    void loadMeetingTypes().then((result) => {
-      if (subscribed) {
-        if (result.ok) {
-          setCatalogState({ kind: 'ready', meetingTypes: result.meetingTypes });
-        } else {
-          setCatalogState({ kind: 'error' });
-        }
-      }
-    });
-    return () => {
-      subscribed = false;
-    };
-  }, []);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -218,7 +189,6 @@ export function AdminPage() {
           <button
             type="button"
             onClick={() => {
-              setCatalogState({ kind: 'loading' });
               void loadCatalog();
             }}
           >
