@@ -38,10 +38,25 @@ func TestServerStartsAndMatchesContract(t *testing.T) {
 		t.Fatalf("build: %v\n%s", err, output)
 	}
 
+	t.Run("invalid PORT fails startup", func(t *testing.T) {
+		cmd := exec.Command(binary)
+		cmd.Dir = root
+		for _, entry := range os.Environ() {
+			if !strings.HasPrefix(entry, "PORT=") && !strings.HasPrefix(entry, "LISTEN_ADDR=") {
+				cmd.Env = append(cmd.Env, entry)
+			}
+		}
+		cmd.Env = append(cmd.Env, "PORT=", "LISTEN_ADDR=127.0.0.1:0")
+		output, err := cmd.CombinedOutput()
+		if err == nil || !strings.Contains(string(output), "invalid PORT") {
+			t.Fatalf("expected invalid PORT startup failure, got %v: %s", err, output)
+		}
+	})
+
 	cmd := exec.Command(binary)
 	cmd.Dir = root
 	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "LISTEN_ADDR=") {
+		if !strings.HasPrefix(entry, "LISTEN_ADDR=") && !strings.HasPrefix(entry, "PORT=") {
 			cmd.Env = append(cmd.Env, entry)
 		}
 	}

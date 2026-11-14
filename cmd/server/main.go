@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 	_ "time/tzdata"
@@ -56,9 +57,9 @@ func run() error {
 	if dir := os.Getenv("FRONTEND_DIR"); dir != "" {
 		handler = server.WithFrontend(handler, os.DirFS(dir))
 	}
-	address := os.Getenv("LISTEN_ADDR")
-	if address == "" {
-		address = "127.0.0.1:8080"
+	address, err := listenAddress(os.LookupEnv)
+	if err != nil {
+		return err
 	}
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
@@ -95,4 +96,26 @@ func run() error {
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	}
+}
+
+func listenAddress(lookup func(string) (string, bool)) (string, error) {
+	if port, present := lookup("PORT"); present {
+		if port == "" {
+			return "", errors.New("invalid PORT: expected a decimal port from 1 to 65535")
+		}
+		for _, digit := range port {
+			if digit < '0' || digit > '9' {
+				return "", errors.New("invalid PORT: expected a decimal port from 1 to 65535")
+			}
+		}
+		value, err := strconv.ParseUint(port, 10, 16)
+		if err != nil || value == 0 {
+			return "", errors.New("invalid PORT: expected a decimal port from 1 to 65535")
+		}
+		return net.JoinHostPort("0.0.0.0", strconv.FormatUint(value, 10)), nil
+	}
+	if address, _ := lookup("LISTEN_ADDR"); address != "" {
+		return address, nil
+	}
+	return "127.0.0.1:8080", nil
 }

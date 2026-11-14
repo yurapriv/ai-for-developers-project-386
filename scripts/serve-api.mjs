@@ -22,10 +22,12 @@ if (!existsSync(binary)) {
 }
 
 const address = process.env.LISTEN_ADDR ?? '127.0.0.1:8080';
+const env = { ...process.env, LISTEN_ADDR: address };
+delete env.PORT;
 const child = spawn(binary, [], {
   stdio: 'inherit',
   cwd: root,
-  env: { ...process.env, LISTEN_ADDR: address },
+  env,
 });
 
 const stop = () => {

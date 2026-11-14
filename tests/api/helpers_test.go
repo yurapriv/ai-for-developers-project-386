@@ -124,7 +124,7 @@ func startServer(t *testing.T) *apiServer {
 	cmd := exec.Command(binary)
 	cmd.Dir = root
 	for _, entry := range os.Environ() {
-		if strings.HasPrefix(entry, "LISTEN_ADDR=") || strings.HasPrefix(entry, "E2E_MODE=") {
+		if strings.HasPrefix(entry, "LISTEN_ADDR=") || strings.HasPrefix(entry, "PORT=") || strings.HasPrefix(entry, "E2E_MODE=") {
 			continue
 		}
 		cmd.Env = append(cmd.Env, entry)
