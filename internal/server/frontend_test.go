@@ -25,6 +25,7 @@ func TestFrontendAndAPIStaySeparate(t *testing.T) {
 		status               int
 		html                 bool
 	}{
+		{"GET", "/", "", 200, true},
 		{"GET", "/booking", "text/html", 200, true},
 		{"GET", "/unknown", "text/html", 200, true},
 		{"GET", "/assets/missing.js", "text/html", 404, false},

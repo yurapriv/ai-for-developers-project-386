@@ -20,7 +20,7 @@ func WithFrontend(api http.Handler, files fs.FS) http.Handler {
 			return
 		}
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
-		if name == "." {
+		if name == "" {
 			name = "index.html"
 		}
 		if info, err := fs.Stat(files, name); err == nil && !info.IsDir() {

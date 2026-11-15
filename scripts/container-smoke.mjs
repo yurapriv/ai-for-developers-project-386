@@ -25,6 +25,9 @@ try {
       }
     }
     assert(ready, 'container did not become ready');
+    const root = await fetch(base);
+    assert.equal(root.status, 200, 'root healthcheck');
+    assert(root.headers.get('content-type')?.includes('text/html'));
     assert.deepEqual(await (await fetch(`${base}/api/meeting-types`)).json(), []);
     for (const path of ['/api/not-an-operation', '/assets/missing.js']) {
       const response = await fetch(base + path, { headers: { accept: 'text/html' } });
